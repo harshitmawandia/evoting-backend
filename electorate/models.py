@@ -35,7 +35,7 @@ class Candidate(models.Model):
 class Voter(models.Model):
     entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
-    otpGenerated = models.CharField(max_length=4, null=False)
+    otpGenerated = models.CharField(max_length=4)
     otpVerified = models.BooleanField(default=False, null=False)
     voteCasted = models.BooleanField(default=False, null=False)
 
