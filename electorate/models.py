@@ -1,7 +1,7 @@
 from django.db import models
 
 # Create your models here.
-class Profiles(models.Model):
+class Profile(models.Model):
     entryNumber = models.CharField(max_length=15, primary_key=True, unique=True, null=False)
     name = models.CharField(max_length=50, null=False)
 
@@ -9,9 +9,10 @@ class Profiles(models.Model):
         return self.entryNumber + ' | ' + self.name
 
 class Election(models.Model):
-    electionName = models.CharField(max_length=50, null=False)
+    electionName = models.CharField(max_length=50, null=False, unique=True)
     electionDate = models.DateField(null=False)
-    electionTime = models.TimeField(null=False)
+    electionTimeStart = models.TimeField(null=False)
+    electionTimeEnd = models.TimeField(null=False)
     electionStatus = models.BooleanField(default=False, null=False)
     numberOfCandidates = models.IntegerField(null=False, default=0)
 
@@ -19,8 +20,8 @@ class Election(models.Model):
         return self.electionName
     
 class Candidate(models.Model):
-    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False)
-    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
+    entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, to_field='electionName')
     j = models.IntegerField(null=False, default=0)
 
     class Meta:
@@ -32,7 +33,7 @@ class Candidate(models.Model):
         return self.entryNumber.entryNumber + ' | ' + self.election.electionName
     
 class Voter(models.Model):
-    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False)
+    entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
     otpGenerated = models.CharField(max_length=4, null=False)
     otpVerified = models.BooleanField(default=False, null=False)
