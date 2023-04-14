@@ -19,38 +19,38 @@ class Election(models.Model):
         return self.electionName
     
 class Candidate(models.Model):
-    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False, related_name='entryNumber')
-    electionName = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, related_name='electionName')
+    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False)
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
     j = models.IntegerField(null=False, default=0)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['entryNumber', 'electionName'], name='unique_candidate')
+            models.UniqueConstraint(fields=['entryNumber', 'election'], name='unique_candidate')
         ]
 
     def __str__(self):
-        return self.entryNumber.entryNumber + ' | ' + self.electionName.electionName
+        return self.entryNumber.entryNumber + ' | ' + self.election.electionName
     
 class Voter(models.Model):
-    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False, related_name='entryNumber')
-    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, related_name='electionName')
+    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False)
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
     otpGenerated = models.CharField(max_length=4, null=False)
     otpVerified = models.BooleanField(default=False, null=False)
     voteCasted = models.BooleanField(default=False, null=False)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['entryNumber', 'electionName'], name='unique_electorate')
+            models.UniqueConstraint(fields=['entryNumber', 'election'], name='unique_electorate')
         ]
 
     def __str__(self):
-        return self.entryNumber.entryNumber + ' | ' + self.electionName.electionName
+        return self.entryNumber.entryNumber + ' | ' + self.election.electionName
     
 class Booth(models.Model):
-    ip = models.IPAddressField(null=False, unique=True, primary_key=True)
-    id = models.AutoField(unique=True, serialize=True)
+    ip = models.GenericIPAddressField(null=False, unique=True, protocol='IPv4',)
+    id = models.AutoField(primary_key=True, unique=True, serialize=True)
     verified = models.BooleanField(default=False, null=False)
-    statusChoices = ('Empty', 'Token Assigned', 'Token Verified')
+    statusChoices = [('Empty', 'Empty'), ('Token Generated', 'Token Generated'), ('Token Verified', 'Token Verified')]
     status = models.CharField(max_length=15, choices=statusChoices, null=False, default='Empty')
 
 class Token(models.Model):
