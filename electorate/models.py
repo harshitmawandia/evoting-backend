@@ -1,10 +1,9 @@
 from django.db import models
 
 # Create your models here.
-class Voter(models.Model):
+class Profiles(models.Model):
     entryNumber = models.CharField(max_length=15, primary_key=True, unique=True, null=False)
     name = models.CharField(max_length=50, null=False)
-    email = models.EmailField(max_length=50, null=False)
 
     def __str__(self):
         return self.entryNumber + ' | ' + self.name
@@ -20,7 +19,7 @@ class Election(models.Model):
         return self.electionName
     
 class Candidate(models.Model):
-    entryNumber = models.ForeignKey(Voter, on_delete=models.CASCADE, null=False, related_name='entryNumber')
+    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False, related_name='entryNumber')
     electionName = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, related_name='electionName')
     j = models.IntegerField(null=False, default=0)
 
@@ -32,9 +31,9 @@ class Candidate(models.Model):
     def __str__(self):
         return self.entryNumber.entryNumber + ' | ' + self.electionName.electionName
     
-class Electorate(models.Model):
-    entryNumber = models.ForeignKey(Voter, on_delete=models.CASCADE, null=False, related_name='entryNumber')
-    electionName = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, related_name='electionName')
+class Voter(models.Model):
+    entryNumber = models.ForeignKey(Profiles, on_delete=models.CASCADE, null=False, related_name='entryNumber')
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, related_name='electionName')
     otpGenerated = models.CharField(max_length=4, null=False)
     otpVerified = models.BooleanField(default=False, null=False)
     voteCasted = models.BooleanField(default=False, null=False)
@@ -47,13 +46,22 @@ class Electorate(models.Model):
     def __str__(self):
         return self.entryNumber.entryNumber + ' | ' + self.electionName.electionName
     
+class Booth(models.Model):
+    ip = models.IPAddressField(null=False, unique=True, primary_key=True)
+    id = models.AutoField(unique=True, serialize=True)
+    verified = models.BooleanField(default=False, null=False)
+    statusChoices = ('Empty', 'Token Assigned', 'Token Verified')
+    status = models.CharField(max_length=15, choices=statusChoices, null=False, default='Empty')
+
 class Token(models.Model):
     rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     otp = models.CharField(max_length=4, null=False)
-    electorate = models.ForeignKey (Electorate, on_delete=models.CASCADE, null=False)
+    booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False)
+    validFrom = models.DateTimeField(null=False)
+    voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
 
 class Vote(models.Model):
     C_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
@@ -63,5 +71,9 @@ class Vote(models.Model):
     r_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_v = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
+
+
+
+
 
 
