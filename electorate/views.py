@@ -172,3 +172,38 @@ def createVoters(request):
             return Response({'data': 'Voters created successfully'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Election does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+@api_view(['GET'])
+def getElectionsForVoter(request):
+    if(request.user.is_authenticated and request.user.is_staff):
+        entryNumber = request.GET.get('entryNumber')
+        profile = Profile.objects.filter(entryNumber=entryNumber)
+        if profile.exists():
+            profile = profile.first()
+            voter = Voter.objects.filter(entryNumber=profile, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), voteCasted = False)
+            if voter.exists():
+                elections = voter.values('election__electionName')
+                return Response({'data': elections}, status=status.HTTP_200_OK)
+            else:
+                return Response({'data': 'No elections found'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+@api_view(['GET'])
+def getToken(request):
+    if(request.user.is_authenticated and request.user.is_staff):
+        entryNumber = request.GET.get('entryNumber')
+        electionName = request.GET.get('electionName')
+        profile = Profile.objects.filter(entryNumber=entryNumber)
+        if profile.exists():
+            profile = profile.first()
+            voter = Voter.objects.filter(entryNumber=profile, election__electionName=electionName, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), voteCasted = False)
+            if voter.exists():
+                voter = voter.first()
+                # generate token
+            else:
+                return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
