@@ -1,4 +1,5 @@
 import datetime
+import random
 from django.shortcuts import render
 from .models import *
 from rest_framework.decorators import api_view
@@ -8,11 +9,43 @@ from rest_framework.response import Response
 from rest_framework import status
 from ipware import get_client_ip
 import pandas as pd
+from klefki.zkp.pedersen import PedersonCommitment
+from klefki.algebra.concrete import EllipticCurveGroupSecp256k1 as Curve
+from klefki.algebra.concrete import FiniteFieldCyclicSecp256k1 as CF
+from klefki.algebra.concrete import FiniteFieldSecp256k1 as F
+from klefki.algebra.utils import randfield
+from klefki.utils import to_sha256int
+import hashlib
 
+G = Curve.G
+s = bytes.fromhex("0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")
+x = int(hashlib.sha256(s).hexdigest(),16)
+H = Curve.lift_x(F(x))
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {'refresh': str(refresh), 'access': str(refresh.access_token)}
+ 
+def generateOtp():
+    #generate 4 hex digits
+    return hex(random.randint(0, 0xFFFF))[2:].zfill(4)
+
+def getEmptyBooth():
+    booth = Booth.objects.filter(status='Empty')
+    if booth.exists():
+        # return a random booth
+        return booth[random.randint(0, len(booth)-1)]
+    else:
+        booth = Booth.objects.all()
+        for b in booth:
+            token = Token.objects.get(booth=b)
+            # if more than 3 mins have passed since the last token was generated
+            if (datetime.datetime.now() - token.validFrom).total_seconds() > 180:
+                token.delete()
+                b.status = 'Empty'
+                b.save()
+                return b
+        return None
 
 
 # Create your views here.
@@ -202,8 +235,48 @@ def getToken(request):
             voter = Voter.objects.filter(entryNumber=profile, election__electionName=electionName, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), voteCasted = False)
             if voter.exists():
                 voter = voter.first()
-                # generate token
+                if voter.otpVerified or voter.otpGenerated!=None:
+                    token = Token.objects.get(voter=voter)
+                    timeOfGeneration = token.validFrom
+                    # token is valid for 3 minutes
+                    if (datetime.datetime.now() - timeOfGeneration).total_seconds() > 180:
+                        token.booth.status = 'Empty'
+                        token.booth.save()
+                        token.delete()
+                        voter.otpGenerated = None
+                        voter.otpVerified = False
+                        voter.save()
+                    else:
+                        token.otp = generateOtp()
+                        booth = token.booth.id
+                        token.booth.status = 'Token Generated'
+                        token.booth.save()
+                        token.validFrom = datetime.datetime.now()
+                        token.save()
+                        voter.otpGenerated = token.otp
+                        voter.save()
+                        return Response({'data': {'otp': token.otp, 'booth': booth}}, status=status.HTTP_200_OK)
+                # generate new token
+                # generate ballot rid and u(obfuscation number) and r_rid and r_u
+                rid = randfield(CF)
+                r_rid = randfield(CF)
+                u = randfield(CF)
+                r_u = randfield(CF)
+                otp = generateOtp()
+                booth = getEmptyBooth()
+                if booth is None:
+                    return Response({'error': 'No booths available'}, status=status.HTTP_200_OK)
+                booth.status = 'Token Generated'
+                booth.save()
+                token = Token.objects.create(voter=voter, otp=otp, rid=rid, r_rid=r_rid, u=u, r_u=r_u, booth=booth)
+                token.save()
+                voter.otpGenerated = otp
+                voter.save()
+                return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Voter not found'}, status=status.HTTP_200_OK)
     else:
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+

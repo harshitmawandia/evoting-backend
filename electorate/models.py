@@ -35,7 +35,7 @@ class Candidate(models.Model):
 class Voter(models.Model):
     entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
-    otpGenerated = models.CharField(max_length=4)
+    otpGenerated = models.CharField(max_length=4, default=None)
     otpVerified = models.BooleanField(default=False, null=False)
     voteCasted = models.BooleanField(default=False, null=False)
 
@@ -61,7 +61,7 @@ class Token(models.Model):
     r_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     otp = models.CharField(max_length=4, null=False)
     booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False)
-    validFrom = models.DateTimeField(null=False)
+    validFrom = models.DateTimeField(null=False, auto_now_add=True)
     voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
 
 class Vote(models.Model):
