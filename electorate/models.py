@@ -22,6 +22,7 @@ class Election(models.Model):
 class Candidate(models.Model):
     entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False, to_field='electionName')
+    candidatename=models.CharField(max_length=50, null=False)
     j = models.IntegerField(null=False, default=0)
 
     class Meta:
@@ -38,6 +39,7 @@ class Voter(models.Model):
     otpGenerated = models.CharField(max_length=4, default=None)
     otpVerified = models.BooleanField(default=False, null=False)
     voteCasted = models.BooleanField(default=False, null=False)
+    
 
     class Meta:
         constraints = [
@@ -56,13 +58,16 @@ class Booth(models.Model):
 
 class Token(models.Model):
     rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
+    C_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
+    C_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     otp = models.CharField(max_length=4, null=False)
     booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False)
     validFrom = models.DateTimeField(null=False, auto_now_add=True)
     voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
+
 
 class Vote(models.Model):
     C_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
@@ -73,7 +78,13 @@ class Vote(models.Model):
     r_v = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
 
-
+class Receipt(models.Model):
+    C_rid= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+    C_u= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+    C_v= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+    w_v=models.IntegerField(null=False,default=0)
+    w_vtilde=models.IntegerField(null=False,default=0)
+    r_w_v=models.DecimalField(max_digits=50, decimal_places=0, null=False)
 
 
 
