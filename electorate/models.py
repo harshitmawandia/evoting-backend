@@ -69,7 +69,7 @@ class Token(models.Model):
 class OTP(models.Model):
     otp = models.CharField(max_length=4, null=False)
     booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False, unique=True)
-    validFrom = models.DateTimeField(null=False)
+    validFrom = models.DateTimeField(null=False, auto_now_add=True)
 
 class OTP_To_Token(models.Model):
     otp = models.ForeignKey(OTP, on_delete=models.CASCADE, null=False)
