@@ -320,35 +320,14 @@ def getTokens(request):
 @api_view(['POST'])
 def verifyToken(request):
     if(request.user.is_authenticated and request.user.is_staff):
-        otp = request.data.get('otp')
+        if('otp' not in request.data):
+            return Response({'error': 'OTP not entered'}, status=status.HTTP_200_OK)
+        otp = request.data['otp']
         client_ip, is_routable = get_client_ip(request)
         booth = Booth.objects.filter(ip=client_ip)
         if not booth.exists():
             return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
         booth = booth.first()
-        token = Token.objects.filter(otp=otp, booth=booth)
-        if token.exists():
-            token = token.first()
-            # token is valid for 3 minutes
-            if (datetime.datetime.now() - token.validFrom).total_seconds() > 180:
-                token.booth.status = 'Empty'
-                token.booth.save()
-                token.delete()
-                return Response({'error': 'Token expired'}, status=status.HTTP_200_OK)
-
-            voter = token.voter
-            voter.otpVerified = True
-            voter.save()
-            token.booth.status = 'Token Verified'
-            token.booth.save()
-
-            #return rid, r_rid, u, r_u, C_rid, C_u, list of candidates with their j values
-            candidates = Candidate.objects.filter(election=voter.election)
-            jsonCanditates = []
-            for candidate in candidates:
-                w_j = (candidate.j + token.u)
-                w_j_tilda = w_j % voter.election.numberOfCandidates
-                jsonCanditates.append({'name': candidate.candidatename, 'j': w_j_tilda})
 
             
 
