@@ -54,7 +54,11 @@ def getEmptyBooth():
                     # delete otp and corresponding tokens
                     otp_to_token = OTP_To_Token.objects.filter(otp=otpObject)
                     for o in otp_to_token:
-                        o.delete()
+                        if(o.token.voter.numVotesCasted == 0):
+                            o.token.voter.otpGenerated = False
+                            o.token.voter.otpVerified = False
+                            o.token.voter.save()
+                        o.token.delete()
                     otpObject.delete()
                     # set booth status to empty
                     b.status = 'Empty'
