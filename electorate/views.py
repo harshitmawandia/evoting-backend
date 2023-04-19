@@ -382,59 +382,25 @@ def verifyOTP(request):
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
-    if (OTPobj.first().otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
+    if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
         return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
-    otpToken=OTP_To_Token.objects.filter(otp=otp)
+    OTPobj = OTPobj.first()
+    otpToken=OTP_To_Token.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
         return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
-    # for otptok in otpToken:
-    #     token=otptok.token
-    #     voter=token.voter
-    #     voters.append(voter)
-    # sampletoken=otpToken.first().token
-
-
-        
     
-    # entryNumber=sampletoken.voter.entryNumber
-    # election=request.GET.get('election')
-    # voters=Voter.objects.filter(entryNumber=entryNumber)
-    
-    Listballots=[]
     ListIds=[]
     for otptok in otpToken:
         token=otptok.token
-        # if (not(token.exists())):
-        #     return Response({'error': 'Token not found, please talk to the polling officer'}, status=status.HTTP_200_OK)
-        # OTPtoken=OTP_To_Token.objects.filter(otp=otp,token=token)
-        # if (not(OTPtoken.exists())):
-        #     return Response({"Incorrect OTP"},status=status.HTTP_401_UNAUTHORIZED)
-        # OTPobj=OTP.objects.filter(otp=otp)
         voter=token.voter
-        election=voter.election
-        Lold=[obj.candidatename for obj in Candidate.objects.filter(election=election)]
-        L=Lold.copy()
-        for i in range(0,len(Lold)):
-            L[i]=Lold[(token.u+i)%len(Lold)]
-        Listballots.append(L)
+        voter.otpVerified = True
+        voter.save()
         ListIds.append(voter.id)
-    OTPobj=OTPobj.first()
-
-
+    return Response({'data': 'Token verified','voter_ids':ListIds}, status=status.HTTP_200_OK)
     
 
-    
-    
-    
-    
 
-    
-    
-
-    if (OTPobj.otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()<180):
-        voter.otpVerified=True
-        return Response({'data': 'Token verified','ballotlist':Listballots,'ListIds':ListIds}, status=status.HTTP_200_OK)
 @api_view(['GET'])
 def getBallot(request):
     voter_id=request.Get.get('voter_id')
@@ -447,11 +413,12 @@ def getBallot(request):
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
-    if (OTPobj.first().otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
+    OTPobj = OTPobj.first()
+    if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
         return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
-    otpToken=OTP_To_Token.objects.filter(otp=otp)
+    otpTokens=OTP_To_Token.objects.filter(otp=OTPobj)
 
-    if (not(otpToken.exists())):
+    if (not(otpTokens.exists())):
         OTPobj.delete()
         return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
     voter=Voter.objects.filter(id=voter_id)
@@ -461,20 +428,28 @@ def getBallot(request):
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
         return Response({'error': 'No Token'}, status=status.HTTP_200_OK)
+    token=token.first()
+    # assert this token exists in otpTokens
+    found = False
+    for otpToken in otpTokens:
+        if otpToken.token == token:
+            found = True
+            break
+
+    if(not found):
+        return Response({'error': 'OTP not valid for Voter'}, status=status.HTTP_200_OK)
+
     election=voter.election
+    ballot = []
+
     Lold=[obj.candidatename for obj in Candidate.objects.filter(election=election)]
     L=Lold.copy()
     token=token.first()
     for i in range(0,len(Lold)):
         L[i]=Lold[(token.u+i)%len(Lold)]
+        ballot.append({'name':L[i],'j':(token.u+i)%len(Lold)})
     
-    return Response({'data': 'Token verified','ballotlist':L,'u':str(token.u),'C_u':str(token.C_u),'C_rid':str(token.C_rid)}, status=status.HTTP_200_OK)
-
-    
-
-
-
-
+    return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_u':str(token.C_u),'C_rid':str(token.C_rid),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
 
     
 
