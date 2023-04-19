@@ -84,13 +84,13 @@ class Vote(models.Model):
     r_v = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
 
-class Receipt(models.Model):
-    C_rid= models.DecimalField(max_digits=50, decimal_places=0, null=False)
-    C_u= models.DecimalField(max_digits=50, decimal_places=0, null=False)
-    C_v= models.DecimalField(max_digits=50, decimal_places=0, null=False)
-    w_v=models.IntegerField(null=False,default=0)
-    w_vtilde=models.IntegerField(null=False,default=0)
-    r_w_v=models.DecimalField(max_digits=50, decimal_places=0, null=False)
+# class Receipt(models.Model):
+#     C_rid= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+#     C_u= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+#     C_v= models.DecimalField(max_digits=50, decimal_places=0, null=False)
+#     w_v=models.IntegerField(null=False,default=0)
+#     w_vtilde=models.IntegerField(null=False,default=0)
+#     r_w_v=models.DecimalField(max_digits=50, decimal_places=0, null=False)
 
 
 

@@ -516,13 +516,14 @@ def castVote(request):
         C_rid=(CF)(token.C_rid)
         C_v=(CF)((G**v)*(H**r_v))
         C_u=token.C_u
+        entrynohash=hashlib.sha256(str(voter.entryNumber.entryNumber).encode('utf-8')).hexdigest()
         # receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
         # receipt.save()
         vote=Vote.objects.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
         vote.save()
         voter.numVotesCasted+=1
         voter.save()
-        sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name,Candidate.objects.filter(election=voter.election)[v].entryNumber.name)
+        sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name,Candidate.objects.filter(election=voter.election)[v])
         #send email
     token.delete()
     otpToToken = OTP_To_Token.objects.filter(otp=OTPobj)
@@ -530,7 +531,22 @@ def castVote(request):
         OTPobj.delete()
     
     return Response({'data': 'Vote casted.Check your email for your receipt'}, status=status.HTTP_200_OK)
-# @api_view(['GET'])
+@api_view(['GET'])
+def checkReceipt(request):
+    if not(request.user.is_authenticated and request.user.is_staff):
+        return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
+    election=Election.objects.filter(electionName=request.GET['electionName'])
+    if (not(election.exists())):
+        return Response({'error':'No election with this name'},status=status.HTTP_200_OK)
+    election=election.first()
+    C_rid=request.GET['C_rid']
+    vote=Vote.objects.filter(C_rid=C_rid,election=election)
+    if (not(vote.exists())):
+        return Response({'error':'No vote with this C_rid'},status=status.HTTP_200_OK)
+    vote=vote.first()
+    v=vote.v
+
+    return Response({'vote':Candidate.objects.filter(election=election)[v]},status=status.HTTP_200_OK)
 
 
 # @api_view(['POST'])
