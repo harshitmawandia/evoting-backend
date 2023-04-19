@@ -15,6 +15,7 @@ class Election(models.Model):
     electionTimeEnd = models.TimeField(null=False)
     electionStatus = models.BooleanField(default=False, null=False)
     numberOfCandidates = models.IntegerField(null=False, default=0)
+    votesPerVoter = models.IntegerField(null=False, default=1)
 
     def __str__(self):
         return self.electionName
@@ -38,7 +39,7 @@ class Voter(models.Model):
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
     otpGenerated = models.CharField(max_length=4, default=None)
     otpVerified = models.BooleanField(default=False, null=False)
-    voteCasted = models.BooleanField(default=False, null=False)
+    numVotesCasted = models.IntegerField(null=False, default=0)
     
 
     class Meta:
@@ -63,11 +64,16 @@ class Token(models.Model):
     u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     C_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
     r_u = models.DecimalField(max_digits=50, decimal_places=0, null=False)
-    otp = models.CharField(max_length=4, null=False)
-    booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False)
-    validFrom = models.DateTimeField(null=False, auto_now_add=True)
     voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
 
+class OTP(models.Model):
+    otp = models.CharField(max_length=4, null=False)
+    booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False, unique=True)
+    validFrom = models.DateTimeField(null=False)
+
+class OTP_To_Token(models.Model):
+    otp = models.ForeignKey(OTP, on_delete=models.CASCADE, null=False)
+    token = models.ForeignKey(Token, on_delete=models.CASCADE, null=False, unique=True, primary_key=True)
 
 class Vote(models.Model):
     C_rid = models.DecimalField(max_digits=50, decimal_places=0, null=False)
