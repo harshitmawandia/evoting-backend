@@ -389,14 +389,6 @@ def verifyOTP(request):
     if (not(otpToken.exists())):
         OTPobj.delete()
         return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
-    # for otptok in otpToken:
-    #     token=otptok.token
-    #     voter=token.voter
-    #     voters.append(voter)
-    # sampletoken=otpToken.first().token    
-    # entryNumber=sampletoken.voter.entryNumber
-    # election=request.GET.get('election')
-    # voters=Voter.objects.filter(entryNumber=entryNumber)
     
     ListIds=[]
     for otptok in otpToken:
