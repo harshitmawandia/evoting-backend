@@ -283,6 +283,8 @@ def getToken(request):
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
 @api_view(['GET'])
 def verifyToken(request):
+
+
     entryNumber=request.GET.get('entryNumber')
     election=request.GET.get('election')
     otp=request.GET.get('otp')
@@ -311,12 +313,17 @@ def verifyToken(request):
 
 @api_view(['POST'])
 def getVote(request):
+    
     w_v=request.data['chosennumber']
     entryNo=request.data['entryNo']
     election=request.data['election']
     voter=Voter.objects.filter(entryNumber=entryNo,election=election)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
+    if (not(token.exists())):
+        return Response({'error':'No Token'},status=status.HTTP_401_UNAUTHORIZED)
+    if (not(voter.otpVerified)):
+        return Response({'error':'Token Not verified'},status=status.HTTP_401_UNAUTHORIZED)
     token=token.first()
     m=voter.election.numberOfCandidates
     u=token.u
@@ -333,6 +340,8 @@ def getVote(request):
     receipt.save()
     vote=Vote.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
     vote.save()
+    voter.voteCasted=True
+    voter.save()
     
     return Response({'data': 'Vote casted','C_rid':receipt.C_rid,'C_v':receipt.C_v,'w_v':receipt.w_v,'r_w_v':receipt.r_w_v}, status=status.HTTP_200_OK)
 # @api_view(['GET'])
