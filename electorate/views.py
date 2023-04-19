@@ -16,6 +16,10 @@ from klefki.algebra.concrete import FiniteFieldSecp256k1 as F
 from klefki.algebra.utils import randfield
 from klefki.utils import to_sha256int
 import hashlib
+from django.conf import settings
+from django.core.mail import send_mail
+import os
+
 
 G = Curve.G
 s = bytes.fromhex("0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")
@@ -50,6 +54,33 @@ def getEmptyBooth():
                 b.save()
                 return b
         return None
+    
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com' #smtp
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER = os.environ.get('smtp_user') # sender's email-id from Environment
+EMAIL_HOST_PASSWORD = os.environ.get('smtp_pass') # password of sender's email-id from Environment
+
+def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName, candidateVotedFor):
+    #EntryNumber = 2020CS10348 email = cs1200348@iitd.ac.in
+    email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:]+ '@iitd.ac.in'
+    subject = f'E-Voting Receipt for {electionName}'
+    message = f'''
+    Hello {voterName},<br><br>
+    You have successfully voted for {candidateVotedFor} in the election {electionName}.<br><br>
+    Your receipt is as follows:<br><br>
+    C<sub>rid</sub> = {C_rid}<br>
+    C<sub>u</sub> = {C_u}<br>
+    C<sub>v</sub> = {C_v}<br>
+    w<sub>v</sub> = {w_v}<br>
+    w<sub>v</sub><sup>tilda</sup> = {w_v_tilda}<br>
+    r<sub>w<sub>v</sub></sub> = {r_w_v}<br><br>
+    Thank you for voting!<br><br>
+    Regards,<br>
+    E-Voting Team,<br>
+    CAIC, IIT Delhi'''
+    send_mail(subject, message, EMAIL_HOST_USER, [email], fail_silently=True, html_message=message)
 
 
 # Create your views here.
