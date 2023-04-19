@@ -341,36 +341,8 @@ def getTokens(request):
     
 @api_view(['GET'])
 def verifyOTP(request):
-    # if(request.user.is_authenticated aror': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)nd request.user.is_staff):
-    #     otp = request.data.get('otp')
-    #     client_ip, is_routable = get_client_ip(request)
-    #     booth = Booth.objects.filter(ip=client_ip)
-    #     if not booth.exists():
-    #         return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
-    #     booth = booth.first()
-    #     token = Token.objects.filter(otp=otp, booth=booth)
-    #     if token.exists():
-    #         token = token.first()
-    #         # token is valid for 3 minutes
-    #         if (datetime.datetime.now() - token.validFrom).total_seconds() > 180:
-    #             token.booth.status = 'Empty'
-    #             token.booth.save()
-    #             token.delete()
-    #             return Response({'error': 'Token expired'}, status=status.HTTP_200_OK)
-
-    #         voter = token.voter
-    #         voter.otpVerified = True
-    #         voter.save()
-    #         token.booth.status = 'Token Verified'
-    #         token.booth.save()
-
-    #         #return rid, r_rid, u, r_u, C_rid, C_u, list of candidates with their j values
-    #         candidates = Candidate.objects.filter(election=voter.election)
-    #         jsonCanditates = []
-    #         for candidate in candidates:
-    #             w_j = (candidate.j + token.u)
-    #             w_j_tilda = w_j % voter.election.numberOfCandidates
-    #             jsonCanditates.append({'name': candidate.candidatename, 'j': w_j_tilda})
+    if(not(request.user.is_authenticated and request.user.is_staff)):
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
 
     client_ip,is_routable=get_client_ip(request)
     booth = Booth.objects.filter(ip=client_ip)
@@ -403,6 +375,10 @@ def verifyOTP(request):
 
 @api_view(['GET'])
 def getBallot(request):
+
+    if(not(request.user.is_authenticated and request.user.is_staff)):
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+
     voter_id=request.Get.get('voter_id')
     otp=request.Get.get('otp')
     client_ip,is_routable=get_client_ip(request)
@@ -455,6 +431,9 @@ def getBallot(request):
 
 @api_view(['POST'])
 def castVote(request):
+    if(not(request.user.is_authenticated and request.user.is_staff)):
+        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+
     if('otp' not in request.data):
         return Response({'error': 'OTP not found'}, status=status.HTTP_400_BAD_REQUEST)
     otp=request.data['otp']
@@ -530,9 +509,3 @@ def castVote(request):
         OTPobj.delete()
     
     return Response({'data': 'Vote casted.Check your email for your receipt'}, status=status.HTTP_200_OK)
-# @api_view(['GET'])
-
-
-# @api_view(['POST'])
-# def castVote(request):
-    
