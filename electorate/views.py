@@ -46,13 +46,20 @@ def getEmptyBooth():
     else:
         booth = Booth.objects.all()
         for b in booth:
-            token = Token.objects.get(booth=b)
-            # if more than 3 mins have passed since the last token was generated
-            if (datetime.datetime.now() - token.validFrom).total_seconds() > 180:
-                token.delete()
-                b.status = 'Empty'
-                b.save()
-                return b
+            otpObject = OTP.objects.filter(booth=b)
+            if otpObject.exists():
+                otpObject = otpObject.first()
+                # if more than 180 seconds have passed since otp was generated
+                if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 180:
+                    # delete otp and corresponding tokens
+                    otp_to_token = OTP_To_Token.objects.filter(otp=otpObject)
+                    for o in otp_to_token:
+                        o.delete()
+                    otpObject.delete()
+                    # set booth status to empty
+                    b.status = 'Empty'
+                    b.save()
+                    return b
         return None
     
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
