@@ -479,40 +479,82 @@ def getBallot(request):
     
 
 @api_view(['POST'])
-def getVote(request):
+def castVote(request):
+    if('otp' not in request.data):
+        return Response({'error': 'OTP not found'}, status=status.HTTP_400_BAD_REQUEST)
+    otp=request.data['otp']
+    client_ip,is_routable=get_client_ip(request)
+    booth = Booth.objects.filter(ip=client_ip)
+    if not booth.exists():
+        return Response({'error': 'Booth not found'}, status=status.HTTP_400_BAD_REQUEST)
+    booth = booth.first()
+    OTPobj=OTP.objects.filter(otp=otp,booth=booth)
+    if (not(OTPobj.exists())):
+        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
+    OTPobj = OTPobj.first()
     
-    w_v=request.data['chosennumber']
-    entryNo=request.data['entryNo']
-    election=request.data['election']
-    voter=Voter.objects.filter(entryNumber=entryNo,election=election)
+    if ('vote_list' not in request.data or 'vote_id' not in request.data or 'u' not in request.data or 'C_u' not in request.data or 'C_rid' not in request.data):
+        return Response({'error': 'vote_list or vote_id not found'}, status=status.HTTP_400_BAD_REQUEST)
+    w_vlist=request.data['vote_list']
+    vote_id=request.data['vote_id']
+    uinp=request.data['u']
+    C_uinp=request.data['C_u']
+    C_ridinp=request.data['C_rid']
+    voter=Voter.objects.filter(id=vote_id)
+    if (not(voter.exists())):
+        return Response({'error': 'No voter with this id'}, status=status.HTTP_200_OK)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
         return Response({'error':'No Token'},status=status.HTTP_401_UNAUTHORIZED)
     if (not(voter.otpVerified)):
         return Response({'error':'Token Not verified'},status=status.HTTP_401_UNAUTHORIZED)
-    token=token.first()
-    m=voter.election.numberOfCandidates
-    u=token.u
-    v=((w_v-u)%m+m)%m
-    r_v=randfield(CF)
-    rid=(CF)(token.rid)
-    r_rid=(CF)(token.r_rid)
-    w_vtilde=(CF)((token.r_u+v)%m)
-    r_w_v=(CF)(r_v+token.r_u)
-    C_rid=(CF)(token.C_rid)
-    C_v=(CF)((G**v)*(H**r_v))
-    C_u=token.C_u
-    receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
-    receipt.save()
-    vote=Vote.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
-    vote.save()
-    voter.numVotesCasted+=1
-    voter.save()
-    if (voter.numVotesCasted==voter.election.numberOfVotes):
-        voter.delete()
     
-    return Response({'data': 'Vote casted','C_rid':receipt.C_rid,'C_v':receipt.C_v,'w_v':receipt.w_v,'r_w_v':receipt.r_w_v}, status=status.HTTP_200_OK)
+    token=token.first()
+    #match toekn with otp token
+    otpToken=OTP_To_Token.objects.filter(otp=OTPobj)
+    if (not(otpToken.exists())):
+        OTPobj.delete()
+        return Response({'error':'No token for this OTP'},status=status.HTTP_401_UNAUTHORIZED)
+    otpToken=otpToken.first()
+    if (otpToken.token.rid!=token.rid):
+        return Response({'error':'VoterID does not match OTP'},status=status.HTTP_401_UNAUTHORIZED)
+
+
+    m=voter.election.numberOfCandidates
+    if (uinp!=str(token.u)):
+        return Response({'error':'Incorrect u'},status=status.HTTP_401_UNAUTHORIZED)
+    if (C_uinp!=str(token.C_u)):
+        return Response({'error':'Incorrect C_u'},status=status.HTTP_401_UNAUTHORIZED)
+    if (C_ridinp!=str(token.C_rid)):
+        return Response({'error':'Incorrect C_rid'},status=status.HTTP_401_UNAUTHORIZED)
+    if (len(w_vlist)!=voter.election.votesPerVoter):
+        return Response({'error':'Incorrect number of votes'},status=status.HTTP_401_UNAUTHORIZED)
+    u=token.u
+    for w_v in w_vlist:
+        v=((w_v-u)%m+m)%m
+        r_v=randfield(CF)
+        rid=(CF)(token.rid)
+        r_rid=(CF)(token.r_rid)
+        w_vtilde=(CF)((token.r_u+v)%m)
+        r_w_v=(CF)(r_v+token.r_u)
+        C_rid=(CF)(token.C_rid)
+        C_v=(CF)((G**v)*(H**r_v))
+        C_u=token.C_u
+        # receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
+        # receipt.save()
+        vote=Vote.objects.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
+        vote.save()
+        voter.numVotesCasted+=1
+        voter.save()
+        sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name,Candidate.objects.filter(election=voter.election)[v].entryNumber.name)
+        #send email
+    token.delete()
+    otpToToken = OTP_To_Token.objects.filter(otp=OTPobj)
+    if(not otpToToken.exists()):
+        OTPobj.delete()
+    
+    return Response({'data': 'Vote casted.Check your email for your receipt'}, status=status.HTTP_200_OK)
 # @api_view(['GET'])
 
 
