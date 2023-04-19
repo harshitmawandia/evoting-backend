@@ -239,17 +239,32 @@ def getTokens(request):
             profile = profile.first()
             voters = Voter.objects.filter(entryNumber=profile, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), numVotesCasted = 0)
             if voters.exists():
-                tokens = []
+                tokenObjects = []
                 for voter in voters:
                     if voter.otpVerified or voter.otpGenerated!=None:
                         token = Token.objects.filter(voter=voter)
                         if token.exists():
-                            token = token.first().delete()
+                            otp = OTP_To_Token.objects.get(token=token.first()).otp
+                            token.first().delete()
+                            if(not OTP_To_Token.objects.filter(otp=otp).exists()):
+                                booth = otp.booth
+                                booth.status = 'Empty'
+                                booth.save()
+                                otp.delete()
                         voter.otpGenerated = None
                         voter.otpVerified = False
                         voter.save()
                     
-                    
+                    rid = randfield(CF)
+                    r_rid = randfield(CF)
+                    u = randfield(CF)
+                    r_u = randfield(CF)
+                    C_rid=(G**rid)*(H**r_rid)
+                    C_u=(G**u)*(H**r_u)
+
+                    token = Token.objects.create(voter=voter, rid=rid, r_rid=r_rid, u=u, r_u=r_u, C_rid=C_rid, C_u=C_u)
+                    token.save()
+                    tokenObjects.append(token)
 
                         # timeOfGeneration = token.validFrom
                         # # token is valid for 3 minutes
@@ -272,23 +287,28 @@ def getTokens(request):
                         #     return Response({'data': {'otp': token.otp, 'booth': booth}}, status=status.HTTP_200_OK)
                     # generate new token
                     # generate ballot rid and u(obfuscation number) and r_rid and r_u
-                    rid = randfield(CF)
-                    r_rid = randfield(CF)
-                    u = randfield(CF)
-                    r_u = randfield(CF)
-                    C_rid=(G**rid)*(H**r_rid)
-                    C_u=(G**u)*(H**r_u)
+                    # rid = randfield(CF)
+                    # r_rid = randfield(CF)
+                    # u = randfield(CF)
+                    # r_u = randfield(CF)
+                    # C_rid=(G**rid)*(H**r_rid)
+                    # C_u=(G**u)*(H**r_u)
                 otp = generateOtp()
                 booth = getEmptyBooth()
                 if booth is None:
                     return Response({'error': 'No booths available'}, status=status.HTTP_200_OK)
                 booth.status = 'Token Generated'
                 booth.save()
-                token = Token.objects.create(voter=voter, otp=otp, rid=rid, r_rid=r_rid, u=u, r_u=r_u, booth=booth,C_u=C_u,C_rid=C_rid)
-                token.save()
-                voter.otpGenerated = otp
-                voter.save()
+
+                otpObject = OTP.objects.create(otp=otp, booth=booth)
+                otpObject.save()
+
+                for token in tokenObjects:
+                    otpToToken = OTP_To_Token.objects.create(token=token, otp=otpObject)
+                    otpToToken.save()
+                
                 return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
+
             else:
                 return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
         else:
