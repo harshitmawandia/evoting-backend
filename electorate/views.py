@@ -239,32 +239,17 @@ def getTokens(request):
             profile = profile.first()
             voters = Voter.objects.filter(entryNumber=profile, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), numVotesCasted = 0)
             if voters.exists():
-                tokenObjects = []
+                tokens = []
                 for voter in voters:
                     if voter.otpVerified or voter.otpGenerated!=None:
                         token = Token.objects.filter(voter=voter)
                         if token.exists():
-                            otp = OTP_To_Token.objects.get(token=token.first()).otp
-                            token.first().delete()
-                            if(not OTP_To_Token.objects.filter(otp=otp).exists()):
-                                booth = otp.booth
-                                booth.status = 'Empty'
-                                booth.save()
-                                otp.delete()
+                            token = token.first().delete()
                         voter.otpGenerated = None
                         voter.otpVerified = False
                         voter.save()
                     
-                    rid = randfield(CF)
-                    r_rid = randfield(CF)
-                    u = randfield(CF)
-                    r_u = randfield(CF)
-                    C_rid=(G**rid)*(H**r_rid)
-                    C_u=(G**u)*(H**r_u)
-
-                    token = Token.objects.create(voter=voter, rid=rid, r_rid=r_rid, u=u, r_u=r_u, C_rid=C_rid, C_u=C_u)
-                    token.save()
-                    tokenObjects.append(token)
+                    
 
                         # timeOfGeneration = token.validFrom
                         # # token is valid for 3 minutes
@@ -287,28 +272,23 @@ def getTokens(request):
                         #     return Response({'data': {'otp': token.otp, 'booth': booth}}, status=status.HTTP_200_OK)
                     # generate new token
                     # generate ballot rid and u(obfuscation number) and r_rid and r_u
-                    # rid = randfield(CF)
-                    # r_rid = randfield(CF)
-                    # u = randfield(CF)
-                    # r_u = randfield(CF)
-                    # C_rid=(G**rid)*(H**r_rid)
-                    # C_u=(G**u)*(H**r_u)
+                    rid = randfield(CF)
+                    r_rid = randfield(CF)
+                    u = randfield(CF)
+                    r_u = randfield(CF)
+                    C_rid=(G**rid)*(H**r_rid)
+                    C_u=(G**u)*(H**r_u)
                 otp = generateOtp()
                 booth = getEmptyBooth()
                 if booth is None:
                     return Response({'error': 'No booths available'}, status=status.HTTP_200_OK)
                 booth.status = 'Token Generated'
                 booth.save()
-
-                otpObject = OTP.objects.create(otp=otp, booth=booth)
-                otpObject.save()
-
-                for token in tokenObjects:
-                    otpToToken = OTP_To_Token.objects.create(token=token, otp=otpObject)
-                    otpToToken.save()
-                
+                token = Token.objects.create(voter=voter, otp=otp, rid=rid, r_rid=r_rid, u=u, r_u=r_u, booth=booth,C_u=C_u,C_rid=C_rid)
+                token.save()
+                voter.otpGenerated = otp
+                voter.save()
                 return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
-
             else:
                 return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
         else:
@@ -317,45 +297,144 @@ def getTokens(request):
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
     
     
-@api_view(['POST'])
-def verifyToken(request):
-    if(request.user.is_authenticated and request.user.is_staff):
-        if('otp' not in request.data):
-            return Response({'error': 'OTP not entered'}, status=status.HTTP_200_OK)
-        otp = request.data['otp']
-        client_ip, is_routable = get_client_ip(request)
-        booth = Booth.objects.filter(ip=client_ip)
-        if not booth.exists():
-            return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
-        booth = booth.first()
+@api_view(['GET'])
+def verifyOTP(request):
+    # if(request.user.is_authenticated aror': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)nd request.user.is_staff):
+    #     otp = request.data.get('otp')
+    #     client_ip, is_routable = get_client_ip(request)
+    #     booth = Booth.objects.filter(ip=client_ip)
+    #     if not booth.exists():
+    #         return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
+    #     booth = booth.first()
+    #     token = Token.objects.filter(otp=otp, booth=booth)
+    #     if token.exists():
+    #         token = token.first()
+    #         # token is valid for 3 minutes
+    #         if (datetime.datetime.now() - token.validFrom).total_seconds() > 180:
+    #             token.booth.status = 'Empty'
+    #             token.booth.save()
+    #             token.delete()
+    #             return Response({'error': 'Token expired'}, status=status.HTTP_200_OK)
 
-            
+    #         voter = token.voter
+    #         voter.otpVerified = True
+    #         voter.save()
+    #         token.booth.status = 'Token Verified'
+    #         token.booth.save()
 
-    entryNumber=request.GET.get('entryNumber')
-    election=request.GET.get('election')
+    #         #return rid, r_rid, u, r_u, C_rid, C_u, list of candidates with their j values
+    #         candidates = Candidate.objects.filter(election=voter.election)
+    #         jsonCanditates = []
+    #         for candidate in candidates:
+    #             w_j = (candidate.j + token.u)
+    #             w_j_tilda = w_j % voter.election.numberOfCandidates
+    #             jsonCanditates.append({'name': candidate.candidatename, 'j': w_j_tilda})
+
+    client_ip,is_routable=get_client_ip(request)
+    booth = Booth.objects.filter(ip=client_ip)
+    if not booth.exists():
+        return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
+    booth = booth.first()
     otp=request.GET.get('otp')
-    voter=Voter.objects.filter(entryNumber=entryNumber,election=election)
-    if (not(voter.exists())):
-        return Response({'error': 'Voter not found'}, status=status.HTTP_200_OK)
-    voter=voter.first()
+
+    OTPobj=OTP.objects.filter(otp=otp,booth=booth)
+    if (not(OTPobj.exists())):
+        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
+    if (OTPobj.first().otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
+    otpToken=OTP_To_Token.objects.filter(otp=otp)
+    if (not(otpToken.exists())):
+        OTPobj.delete()
+        return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
+    # for otptok in otpToken:
+    #     token=otptok.token
+    #     voter=token.voter
+    #     voters.append(voter)
+    # sampletoken=otpToken.first().token
+
+
+        
     
+    # entryNumber=sampletoken.voter.entryNumber
+    # election=request.GET.get('election')
+    # voters=Voter.objects.filter(entryNumber=entryNumber)
+    
+    Listballots=[]
+    ListIds=[]
+    for otptok in otpToken:
+        token=otptok.token
+        # if (not(token.exists())):
+        #     return Response({'error': 'Token not found, please talk to the polling officer'}, status=status.HTTP_200_OK)
+        # OTPtoken=OTP_To_Token.objects.filter(otp=otp,token=token)
+        # if (not(OTPtoken.exists())):
+        #     return Response({"Incorrect OTP"},status=status.HTTP_401_UNAUTHORIZED)
+        # OTPobj=OTP.objects.filter(otp=otp)
+        voter=token.voter
+        election=voter.election
+        Lold=[obj.candidatename for obj in Candidate.objects.filter(election=election)]
+        L=Lold.copy()
+        for i in range(0,len(Lold)):
+            L[i]=Lold[(token.u+i)%len(Lold)]
+        Listballots.append(L)
+        ListIds.append(voter.id)
+    OTPobj=OTPobj.first()
+
+
+    
+
+    
+    
+    
+    
+
+    
+    
+
+    if (OTPobj.otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()<180):
+        voter.otpVerified=True
+        return Response({'data': 'Token verified','ballotlist':Listballots,'ListIds':ListIds}, status=status.HTTP_200_OK)
+@api_view(['GET'])
+def getBallot(request):
+    voter_id=request.Get.get('voter_id')
+    otp=request.Get.get('otp')
+    client_ip,is_routable=get_client_ip(request)
+    booth = Booth.objects.filter(ip=client_ip)
+    if not booth.exists():
+        return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
+    booth = booth.first()
+    OTPobj=OTP.objects.filter(otp=otp,booth=booth)
+    if (not(OTPobj.exists())):
+        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
+    if (OTPobj.first().otp==otp and (datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
+    otpToken=OTP_To_Token.objects.filter(otp=otp)
+
+    if (not(otpToken.exists())):
+        OTPobj.delete()
+        return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
+    voter=Voter.objects.filter(id=voter_id)
+    if (not(voter.exists())):
+        return Response({'error': 'No voter with this id'}, status=status.HTTP_200_OK)
+    voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
-        return Response({'error': 'Token not found, please talk to the polling officer'}, status=status.HTTP_200_OK)
-    token=token.first()
-    
+        return Response({'error': 'No Token'}, status=status.HTTP_200_OK)
+    election=voter.election
     Lold=[obj.candidatename for obj in Candidate.objects.filter(election=election)]
     L=Lold.copy()
+    token=token.first()
     for i in range(0,len(Lold)):
         L[i]=Lold[(token.u+i)%len(Lold)]
+    
+    return Response({'data': 'Token verified','ballotlist':L,'u':str(token.u),'C_u':str(token.C_u),'C_rid':str(token.C_rid)}, status=status.HTTP_200_OK)
 
-    if (token.otp==otp and (datetime.datetime.now()-token.validFrom).total_seconds()<180):
-        voter.otpVerified=True
-        return Response({'data': 'Token verified','ballot':L}, status=status.HTTP_200_OK)
-    elif (token.otp==otp and (datetime.datetime.now()-token.validFrom).total_seconds()>=180):
-        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
-    else:
-        return Response({'error': 'Incorrect username/password'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+
+
+
+
+
+    
 
 @api_view(['POST'])
 def getVote(request):
@@ -375,19 +454,21 @@ def getVote(request):
     u=token.u
     v=((w_v-u)%m+m)%m
     r_v=randfield(CF)
-    rid=token.rid
-    r_rid=token.r_rid
-    w_vtilde=(token.r_u+v)%m
-    r_w_v=r_v+token.r_u
-    C_rid=token.C_rid
-    C_v=(G**v)*(H**r_v)
+    rid=(CF)(token.rid)
+    r_rid=(CF)(token.r_rid)
+    w_vtilde=(CF)((token.r_u+v)%m)
+    r_w_v=(CF)(r_v+token.r_u)
+    C_rid=(CF)(token.C_rid)
+    C_v=(CF)((G**v)*(H**r_v))
     C_u=token.C_u
     receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
     receipt.save()
     vote=Vote.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
     vote.save()
-    voter.voteCasted=True
+    voter.numVotesCasted+=1
     voter.save()
+    if (voter.numVotesCasted==voter.election.numberOfVotes):
+        voter.delete()
     
     return Response({'data': 'Vote casted','C_rid':receipt.C_rid,'C_v':receipt.C_v,'w_v':receipt.w_v,'r_w_v':receipt.r_w_v}, status=status.HTTP_200_OK)
 # @api_view(['GET'])
