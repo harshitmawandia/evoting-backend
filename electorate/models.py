@@ -36,7 +36,7 @@ class Candidate(models.Model):
 class Voter(models.Model):
     entryNumber = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
-    otpGenerated = models.CharField(max_length=4, default=None)
+    otpGenerated = models.BooleanField(default=False, null=False)
     otpVerified = models.BooleanField(default=False, null=False)
     numVotesCasted = models.IntegerField(null=False, default=0)
     
@@ -57,12 +57,14 @@ class Booth(models.Model):
     status = models.CharField(max_length=15, choices=statusChoices, null=False, default='Empty')
 
 class Token(models.Model):
-    rid = models.DecimalField(max_digits=50, decimal_places=0)
-    C_rid = models.DecimalField(max_digits=50, decimal_places=0)
-    r_rid = models.DecimalField(max_digits=50, decimal_places=0)
-    u = models.DecimalField(max_digits=50, decimal_places=0)
-    C_u = models.DecimalField(max_digits=50, decimal_places=0)
-    r_u = models.DecimalField(max_digits=50, decimal_places=0)
+    rid = models.DecimalField(max_digits=300, decimal_places=0)
+    C_ridX = models.DecimalField(max_digits=300, decimal_places=0)
+    C_ridY = models.DecimalField(max_digits=300, decimal_places=0)
+    r_rid = models.DecimalField(max_digits=300, decimal_places=0)
+    u = models.DecimalField(max_digits=300, decimal_places=0)
+    C_uX = models.DecimalField(max_digits=300, decimal_places=0)
+    C_uY = models.DecimalField(max_digits=300, decimal_places=0)
+    r_u = models.DecimalField(max_digits=300, decimal_places=0)
     voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
 
 class OTP(models.Model):
@@ -70,16 +72,17 @@ class OTP(models.Model):
     booth = models.ForeignKey(Booth, on_delete=models.CASCADE, null=False, unique=True)
     validFrom = models.DateTimeField(null=False, auto_now_add=True)
 
-class OTP_To_Token(models.Model):
+class OtpToToken(models.Model):
     otp = models.ForeignKey(OTP, on_delete=models.CASCADE, null=False)
     token = models.ForeignKey(Token, on_delete=models.CASCADE, null=False, unique=True, primary_key=True)
 
 class Vote(models.Model):
-    C_rid = models.DecimalField(max_digits=50, decimal_places=0)
-    C_v = models.DecimalField(max_digits=50, decimal_places=0)
-    rid = models.DecimalField(max_digits=50, decimal_places=0)
-    v = models.DecimalField(max_digits=50, decimal_places=0)
-    r_rid = models.DecimalField(max_digits=50, decimal_places=0)
-    r_v = models.DecimalField(max_digits=50, decimal_places=0)
+    C_rid = models.DecimalField(max_digits=300, decimal_places=0)
+    C_vX = models.DecimalField(max_digits=300, decimal_places=0)
+    C_vY = models.DecimalField(max_digits=300, decimal_places=0)
+    rid = models.DecimalField(max_digits=300, decimal_places=0)
+    v = models.DecimalField(max_digits=300, decimal_places=0)
+    r_rid = models.DecimalField(max_digits=300, decimal_places=0)
+    r_v = models.DecimalField(max_digits=300, decimal_places=0)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
 

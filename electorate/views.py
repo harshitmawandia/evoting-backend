@@ -19,6 +19,7 @@ import hashlib
 from django.conf import settings
 from django.core.mail import send_mail
 import os
+from decimal import Decimal
 
 
 G = Curve.G
@@ -33,7 +34,7 @@ def get_tokens_for_user(user):
 def generateOtp():
     #generate 4 hex digits not already in use
     otp = random.randint(0, 65535)
-    while Token.objects.filter(otp=otp).exists():
+    while OTP.objects.filter(otp=otp).exists():
         otp = random.randint(0, 65535)
     # return as hex string
     return hex(otp)[2:].zfill(4)
@@ -52,8 +53,8 @@ def getEmptyBooth():
                 # if more than 180 seconds have passed since otp was generated
                 if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 180:
                     # delete otp and corresponding tokens
-                    otp_to_token = OTP_To_Token.objects.filter(otp=otpObject)
-                    for o in otp_to_token:
+                    Otptotoken = Otptotoken.objects.filter(otp=otpObject)
+                    for o in Otptotoken:
                         if(o.token.voter.numVotesCasted == 0):
                             o.token.voter.otpGenerated = False
                             o.token.voter.otpVerified = False
@@ -135,11 +136,11 @@ def registerBooth(request):
                     booth = booth.first()
                     booth.verified = True
                     booth.save()
-                    return Response({'data': 'Booth already registered'}, status=status.HTTP_200_OK)
+                    return Response({'data': 'Booth already registered', 'token': tokens}, status=status.HTTP_200_OK)
                 else:
                     booth = Booth.objects.create(ip=client_ip, verified=True)
                     booth.save()
-                    return Response({'data': 'Booth registered successfully'}, status=status.HTTP_200_OK)
+                    return Response({'data': 'Booth registered successfully', 'token': tokens}, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'You are not an admin'}, status=status.HTTP_401_UNAUTHORIZED)
         else:
@@ -281,55 +282,70 @@ def getTokens(request):
             profile = profile.first()
             voters = Voter.objects.filter(entryNumber=profile, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), numVotesCasted = 0)
             if voters.exists():
-                tokens = []
+                tokenObjects = []
                 for voter in voters:
-                    if voter.otpVerified or voter.otpGenerated!=None:
+                    if voter.otpVerified or voter.otpGenerated:
                         token = Token.objects.filter(voter=voter)
                         if token.exists():
-                            token = token.first().delete()
-                        voter.otpGenerated = None
+                            otp = OtpToToken.objects.get(token=token.first()).otp
+                            token.first().delete()
+                            if(not OtpToToken.objects.filter(otp=otp).exists()):
+                                booth = otp.booth
+                                booth.status = 'Empty'
+                                booth.save()
+                                otp.delete()
+                        voter.otpGenerated = False
                         voter.otpVerified = False
-                        voter.save()
-                    
-                    
-
-                        # timeOfGeneration = token.validFrom
-                        # # token is valid for 3 minutes
-                        # if (datetime.datetime.now() - timeOfGeneration).total_seconds() > 180:
-                        #     token.booth.status = 'Empty'
-                        #     token.booth.save()
-                        #     token.delete()
-                        #     voter.otpGenerated = None
-                        #     voter.otpVerified = False
-                        #     voter.save()
-                        # else:
-                        #     token.otp = generateOtp()
-                        #     booth = token.booth.id
-                        #     token.booth.status = 'Token Generated'
-                        #     token.booth.save()
-                        #     token.validFrom = datetime.datetime.now()
-                        #     token.save()
-                        #     voter.otpGenerated = token.otp
-                        #     voter.save()
-                        #     return Response({'data': {'otp': token.otp, 'booth': booth}}, status=status.HTTP_200_OK)
-                    # generate new token
-                    # generate ballot rid and u(obfuscation number) and r_rid and r_u
+                        voter.save()                   
                     rid = randfield(CF)
+                    print(rid)
+                    print(type(rid))
                     r_rid = randfield(CF)
                     u = randfield(CF)
                     r_u = randfield(CF)
                     C_rid=(G**rid)*(H**r_rid)
                     C_u=(G**u)*(H**r_u)
+                    rid = str(rid)
+                    rid = Decimal(rid)
+                    r_rid = str(r_rid)
+                    r_rid = Decimal(r_rid)
+                    u = str(u)
+                    u = Decimal(u)
+                    r_u = str(r_u)
+                    r_u = Decimal(r_u)
+                    C_ridX = str(C_rid.x)
+                    C_ridX = Decimal(C_ridX)
+                    C_ridY = str(C_rid.y)
+                    C_ridY = Decimal(C_ridY)
+                    C_uX = str(C_u.x)
+                    C_uX = Decimal(C_uX)
+                    C_uY = str(C_u.y)
+                    C_uY = Decimal(C_uY)
+                    token = Token.objects.create(voter=voter, rid=rid, r_rid=r_rid, u=u, r_u=r_u, C_ridX=C_ridX, C_ridY=C_ridY, C_uX=C_uX, C_uY=C_uY)
+                    token.save()
+                    tokenObjects.append(token)
+                    voter.otpGenerated = True
+                    voter.save()
+
                 otp = generateOtp()
                 booth = getEmptyBooth()
                 if booth is None:
+                    for token in tokenObjects:
+                        token.delete()
+                    for voter in voters:
+                        voter.otpGenerated = False
+                        voter.save()
                     return Response({'error': 'No booths available'}, status=status.HTTP_200_OK)
                 booth.status = 'Token Generated'
                 booth.save()
-                token = Token.objects.create(voter=voter, otp=otp, rid=rid, r_rid=r_rid, u=u, r_u=r_u, booth=booth,C_u=C_u,C_rid=C_rid)
-                token.save()
-                voter.otpGenerated = otp
-                voter.save()
+
+                otpObject = OTP.objects.create(otp=otp, booth=booth)
+                otpObject.save()
+
+                for token in tokenObjects:
+                    otptotoken = OtpToToken.objects.create(token=token, otp=otpObject)
+                    otptotoken.save()
+                
                 return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
@@ -357,7 +373,7 @@ def verifyOTP(request):
     if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
         return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
     OTPobj = OTPobj.first()
-    otpToken=OTP_To_Token.objects.filter(otp=OTPobj)
+    otpToken=OtpToToken.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
         return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
@@ -392,7 +408,7 @@ def getBallot(request):
     OTPobj = OTPobj.first()
     if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
         return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
-    otpTokens=OTP_To_Token.objects.filter(otp=OTPobj)
+    otpTokens=OtpToToken.objects.filter(otp=OTPobj)
 
     if (not(otpTokens.exists())):
         OTPobj.delete()
@@ -466,7 +482,7 @@ def castVote(request):
     
     token=token.first()
     #match toekn with otp token
-    otpToken=OTP_To_Token.objects.filter(otp=OTPobj)
+    otpToken=Otptotoken.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
         return Response({'error':'No token for this OTP'},status=status.HTTP_401_UNAUTHORIZED)
@@ -505,11 +521,39 @@ def castVote(request):
         sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name,Candidate.objects.filter(election=voter.election)[v])
         #send email
     token.delete()
-    otpToToken = OTP_To_Token.objects.filter(otp=OTPobj)
-    if(not otpToToken.exists()):
+    Otptotoken = Otptotoken.objects.filter(otp=OTPobj)
+    if(not Otptotoken.exists()):
         OTPobj.delete()
     
     return Response({'data': 'Vote casted.Check your email for your receipt'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def getResults(request):
+    if not(request.user.is_authenticated and request.user.is_staff):
+        return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
+    if(not 'electionName' in request.GET):
+        return Response({'error':'No election name'},status=status.HTTP_400_BAD_REQUEST)
+    election=Election.objects.filter(electionName=request.GET['electionName'])
+    if (not(election.exists())):
+        return Response({'error':'No election with this name'},status=status.HTTP_200_OK)
+    election=election.first()
+    candidates=Candidate.objects.filter(election=election)
+    votes=Vote.objects.filter(election=election)
+    results={}
+    for candidate in candidates:
+        results[candidate.entryNumber.name]=0
+    for vote in votes:
+        v = vote.v
+        for candidate in candidates:
+            if (candidate.j==v):
+                results[candidate.entryNumber.name]+=1
+
+    #sort results
+    results = sorted(results.items(), key=lambda x: x[1],reverse=True)
+    return Response({'results':results},status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 def checkReceipt(request):
     if not(request.user.is_authenticated and request.user.is_staff):
