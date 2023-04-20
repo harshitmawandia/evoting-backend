@@ -204,6 +204,8 @@ def createCandidates(request):
             # columns names : name, entry_number
             for index, row in df.iterrows():
                 entry_number = row['entry_number']
+                if(len(str(entry_number)) < 11):
+                    continue
                 name = row['name']
                 candidate = Candidate.objects.filter(entryNumber=entry_number, election=election)
                 if candidate.exists():
