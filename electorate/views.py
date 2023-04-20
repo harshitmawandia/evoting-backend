@@ -350,9 +350,9 @@ def getTokens(request):
                 
                 return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
             else:
-                return Response({'error': 'No elections found or Vote Already Casted'}, status=status.HTTP_200_OK)
+                return Response({'error': 'No elections found or Vote Already Casted'}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({'error': 'Voter not found'}, status=status.HTTP_200_OK)
+            return Response({'error': 'Voter not found'}, status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
     
@@ -365,15 +365,15 @@ def verifyOTP(request):
     client_ip,is_routable=get_client_ip(request)
     booth = Booth.objects.filter(ip=client_ip)
     if not booth.exists():
-        return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Booth not found'}, status=status.HTTP_400_BAD_REQUEST)
     booth = booth.first()
     if 'otp' not in request.GET:
-        return Response({'error': 'OTP not found'}, status=status.HTTP_200_OK)
+        return Response({'error': 'OTP not found'}, status=status.HTTP_400_BAD_REQUEST)
     otp=request.GET.get('otp')
 
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
-        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
+        return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
     if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
         otpToken=OtpToToken.objects.filter(otp=OTPobj)
@@ -387,12 +387,12 @@ def verifyOTP(request):
         OTPobj.delete()
         booth.status = 'Empty'
         booth.save()
-        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     
     otpToken=OtpToToken.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
-        return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No token for this OTP'}, status=status.HTTP_400_BAD_REQUEST)
     
     ListIds=[]
     for otptok in otpToken:
@@ -416,18 +416,18 @@ def getBallot(request):
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
     
     if('voter_id' not in request.GET or 'otp' not in request.GET):
-        return Response({'error': 'Voter ID or OTP not found'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Voter ID or OTP not found'}, status=status.HTTP_400_BAD_REQUEST)
 
     voter_id=request.GET.get('voter_id')
     otp=request.GET.get('otp')
     client_ip,is_routable=get_client_ip(request)
     booth = Booth.objects.filter(ip=client_ip)
     if not booth.exists():
-        return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Booth not found'}, status=status.HTTP_401_UNAUTHORIZED)
     booth = booth.first()
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
-        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
+        return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
     if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
         otpToken=OtpToToken.objects.filter(otp=OTPobj)
@@ -441,19 +441,19 @@ def getBallot(request):
         OTPobj.delete()
         booth.status = 'Empty'
         booth.save()
-        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     otpTokens=OtpToToken.objects.filter(otp=OTPobj)
 
     if (not(otpTokens.exists())):
         OTPobj.delete()
-        return Response({'error': 'No token for this OTP'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No token for this OTP'}, status=status.HTTP_400_BAD_REQUEST)
     voter=Voter.objects.filter(id=voter_id)
     if (not(voter.exists())):
-        return Response({'error': 'No voter with this id'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No voter with this id'}, status=status.HTTP_400_BAD_REQUEST)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
-        return Response({'error': 'No Token'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No Token'}, status=status.HTTP_400_BAD_REQUEST)
     token=token.first()
     # assert this token exists in otpTokens
     found = False
@@ -463,7 +463,10 @@ def getBallot(request):
             break
 
     if(not found):
-        return Response({'error': 'OTP not valid for Voter'}, status=status.HTTP_200_OK)
+        return Response({'error': 'OTP not valid for Voter'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    if(voter.otpVerified == False):
+        return Response({'error': 'OTP not verified'}, status=status.HTTP_401_UNAUTHORIZED)
 
     election=voter.election
     ballot = []
@@ -509,7 +512,7 @@ def castVote(request):
     C_ridinp=request.data['C_rid']
     voter=Voter.objects.filter(id=vote_id)
     if (not(voter.exists())):
-        return Response({'error': 'No voter with this id'}, status=status.HTTP_200_OK)
+        return Response({'error': 'No voter with this id'}, status=status.HTTP_401_UNAUTHORIZED)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
