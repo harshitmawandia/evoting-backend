@@ -12,7 +12,7 @@ urlpatterns = [
     path('admin/voter/token',views.getTokens, name='generateTokens'),
     path('admin/voter/otp', views.verifyOTP, name='verifyOTP'),
     path('admin/voter/ballot', views.getBallot, name='getBallot'),
-    path('admin/voter/castVote', views.castVote, name='castVote'),
+    path('admin/voter/vote', views.castVote, name='castVote'),
     path('admin/results', views.getResults, name='getResults'),
     path('admin/voter/checkReceipt', views.checkReceipt, name='checkReceipt'),
 ]

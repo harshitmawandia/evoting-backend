@@ -77,11 +77,12 @@ class OtpToToken(models.Model):
     token = models.ForeignKey(Token, on_delete=models.CASCADE, null=False, unique=True, primary_key=True)
 
 class Vote(models.Model):
-    C_rid = models.DecimalField(max_digits=300, decimal_places=0)
+    C_ridX = models.DecimalField(max_digits=300, decimal_places=0)
+    C_ridY = models.DecimalField(max_digits=300, decimal_places=0)
     C_vX = models.DecimalField(max_digits=300, decimal_places=0)
     C_vY = models.DecimalField(max_digits=300, decimal_places=0)
     rid = models.DecimalField(max_digits=300, decimal_places=0)
-    v = models.DecimalField(max_digits=300, decimal_places=0)
+    v = models.IntegerField(null=False, default=-1)
     r_rid = models.DecimalField(max_digits=300, decimal_places=0)
     r_v = models.DecimalField(max_digits=300, decimal_places=0)
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)

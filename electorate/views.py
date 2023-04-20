@@ -76,13 +76,13 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = os.environ.get('smtp_user') # sender's email-id from Environment
 EMAIL_HOST_PASSWORD = os.environ.get('smtp_pass') # password of sender's email-id from Environment
 
-def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName, candidateVotedFor):
+def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName):
     #EntryNumber = 2020CS10348 email = cs1200348@iitd.ac.in
     email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:]+ '@iitd.ac.in'
     subject = f'E-Voting Receipt for {electionName}'
     message = f'''
     Hello {voterName},<br><br>
-    You have successfully voted for {candidateVotedFor} in the election {electionName}.<br><br>
+    You have successfully voted in the election {electionName}.<br><br>
     Your receipt is as follows:<br><br>
     C<sub>rid</sub> = {C_rid}<br>
     C<sub>u</sub> = {C_u}<br>
@@ -479,7 +479,7 @@ def getBallot(request):
         u = token.u
         print(u)
         L[i]=Lold[(int)((u+i)%len(Lold))]
-        ballot.append({'name':L[i],'j':(u+i)%len(Lold)})
+        ballot.append({'name':L[i],'j':(int)((u+i)%len(Lold))})
     
     return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_uX':str(token.C_uX),'C_uY':str(token.C_uY) ,'C_ridX':str(token.C_ridX),'C_ridY':str(token.C_ridY),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
 
@@ -500,16 +500,27 @@ def castVote(request):
     booth = booth.first()
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
-        return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
+
+    # if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+    #     otpToken=OtpToToken.objects.filter(otp=OTPobj)
+    #     for otptok in otpToken:
+    #         token=otptok.token
+    #         voter=token.voter
+    #         voter.otpGenerated = False
+    #         voter.otpVerified = False
+    #         voter.save()
+    #         token.delete()
+    #     OTPobj.delete()
+    #     booth.status = 'Empty'
+    #     booth.save()
+    #     return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     
-    if ('vote_list' not in request.data or 'vote_id' not in request.data or 'u' not in request.data or 'C_u' not in request.data or 'C_rid' not in request.data):
-        return Response({'error': 'vote_list or vote_id not found'}, status=status.HTTP_400_BAD_REQUEST)
+    if ('vote_list' not in request.data or 'voter_id' not in request.data):
+        return Response({'error': 'Incomplete Data'}, status=status.HTTP_400_BAD_REQUEST)
     w_vlist=request.data['vote_list']
-    vote_id=request.data['vote_id']
-    uinp=request.data['u']
-    C_uinp=request.data['C_u']
-    C_ridinp=request.data['C_rid']
+    vote_id=request.data['voter_id']  
     voter=Voter.objects.filter(id=vote_id)
     if (not(voter.exists())):
         return Response({'error': 'No voter with this id'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -521,8 +532,8 @@ def castVote(request):
         return Response({'error':'Token Not verified'},status=status.HTTP_401_UNAUTHORIZED)
     
     token=token.first()
-    #match toekn with otp token
-    otpToken=Otptotoken.objects.filter(otp=OTPobj)
+    #match token with otp token
+    otpToken=OtpToToken.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
         return Response({'error':'No token for this OTP'},status=status.HTTP_401_UNAUTHORIZED)
@@ -532,37 +543,51 @@ def castVote(request):
 
 
     m=voter.election.numberOfCandidates
-    if (uinp!=str(token.u)):
-        return Response({'error':'Incorrect u'},status=status.HTTP_401_UNAUTHORIZED)
-    if (C_uinp!=str(token.C_u)):
-        return Response({'error':'Incorrect C_u'},status=status.HTTP_401_UNAUTHORIZED)
-    if (C_ridinp!=str(token.C_rid)):
-        return Response({'error':'Incorrect C_rid'},status=status.HTTP_401_UNAUTHORIZED)
     if (len(w_vlist)!=voter.election.votesPerVoter):
         return Response({'error':'Incorrect number of votes'},status=status.HTTP_401_UNAUTHORIZED)
     u=token.u
+    decimal.getcontext().prec = 1000
     for w_v in w_vlist:
         v=((w_v-u)%m+m)%m
         r_v=randfield(CF)
-        rid=(CF)(token.rid)
-        r_rid=(CF)(token.r_rid)
-        w_vtilde=(CF)((token.r_u+v)%m)
-        r_w_v=(CF)(r_v+token.r_u)
-        C_rid=(CF)(token.C_rid)
-        C_v=(CF)((G**v)*(H**r_v))
-        C_u=token.C_u
-        entrynohash=hashlib.sha256(str(voter.entryNumber.entryNumber).encode('utf-8')).hexdigest()
+        r_v=Decimal(str(r_v))
+        rid=(token.rid)
+        r_rid=(token.r_rid)
+        w_vtilde=((token.r_u+v)%m)
+        r_w_v=(Decimal(str(r_v))+token.r_u)
+        C_ridX=(token.C_ridX)
+        C_ridY=(token.C_ridY)
+        C_rid = Curve(
+                (
+                    F(int((C_ridX))),
+                    F(int((C_ridY)))
+                )
+            )
+        C_v=(G**int(v))*(H**int(r_v))
+        C_vX=(C_v.x)
+        C_vX=Decimal(str(C_vX))
+        C_vY=(C_v.y)
+        C_vY=Decimal(str(C_vY))
+        C_uX=(token.C_uX)
+        C_uY=(token.C_uY)
+        C_u = Curve(
+                (
+                    F(int((C_uX))),
+                    F(int((C_uY)))
+                )
+            )
+        # entrynohash=hashlib.sha256(str(voter.entryNumber.entryNumber).encode('utf-8')).hexdigest()
         # receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
         # receipt.save()
-        vote=Vote.objects.create(C_rid=C_rid,C_v=C_v,rid=rid,v=v,r_rid=r_rid,r_v=r_v)
+        vote=Vote.objects.create(C_ridX=C_ridX,C_ridY=C_ridY,C_vX=C_vX,C_vY=C_vY,rid=rid,v=v,r_rid=r_rid,r_v=r_v, election=voter.election)
         vote.save()
         voter.numVotesCasted+=1
         voter.save()
-        sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name,Candidate.objects.filter(election=voter.election)[v])
+        # sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name)
         #send email
     token.delete()
-    Otptotoken = Otptotoken.objects.filter(otp=OTPobj)
-    if(not Otptotoken.exists()):
+    otpToken=OtpToToken.objects.filter(otp=OTPobj)
+    if(not otpToken.exists()):
         OTPobj.delete()
     booth.status = 'Empty'
     booth.save()
