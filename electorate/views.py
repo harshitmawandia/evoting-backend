@@ -1,6 +1,7 @@
 import datetime
 import random
 from django.shortcuts import render
+import pytz
 from .models import *
 from rest_framework.decorators import api_view
 from django.contrib.auth.models import User
@@ -348,7 +349,7 @@ def getTokens(request):
                 
                 return Response({'data': {'otp': otp, 'booth': booth.id}}, status=status.HTTP_200_OK)
             else:
-                return Response({'error': 'No elections found'}, status=status.HTTP_200_OK)
+                return Response({'error': 'No elections found or Vote Already Casted'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Voter not found'}, status=status.HTTP_200_OK)
     else:
@@ -365,14 +366,28 @@ def verifyOTP(request):
     if not booth.exists():
         return Response({'error': 'Booth not found'}, status=status.HTTP_200_OK)
     booth = booth.first()
+    if 'otp' not in request.GET:
+        return Response({'error': 'OTP not found'}, status=status.HTTP_200_OK)
     otp=request.GET.get('otp')
 
     OTPobj=OTP.objects.filter(otp=otp,booth=booth)
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
-    if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
-        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
     OTPobj = OTPobj.first()
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+        otpToken=OtpToToken.objects.filter(otp=OTPobj)
+        for otptok in otpToken:
+            token=otptok.token
+            voter=token.voter
+            voter.otpGenerated = False
+            voter.otpVerified = False
+            voter.save()
+            token.delete()
+        OTPobj.delete()
+        booth.status = 'Empty'
+        booth.save()
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
+    
     otpToken=OtpToToken.objects.filter(otp=OTPobj)
     if (not(otpToken.exists())):
         OTPobj.delete()
@@ -385,6 +400,10 @@ def verifyOTP(request):
         voter.otpVerified = True
         voter.save()
         ListIds.append(voter.id)
+
+    booth.status = 'Token Verified'
+    booth.save()
+
     return Response({'data': 'Token verified','voter_ids':ListIds}, status=status.HTTP_200_OK)
     
 
@@ -524,6 +543,8 @@ def castVote(request):
     Otptotoken = Otptotoken.objects.filter(otp=OTPobj)
     if(not Otptotoken.exists()):
         OTPobj.delete()
+    booth.status = 'Empty'
+    booth.save()
     
     return Response({'data': 'Vote casted.Check your email for your receipt'}, status=status.HTTP_200_OK)
 
