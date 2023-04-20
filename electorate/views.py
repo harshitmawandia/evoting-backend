@@ -21,6 +21,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 import os
 from decimal import Decimal
+import decimal
 
 
 G = Curve.G
@@ -413,9 +414,12 @@ def getBallot(request):
 
     if(not(request.user.is_authenticated and request.user.is_staff)):
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    if('voter_id' not in request.GET or 'otp' not in request.GET):
+        return Response({'error': 'Voter ID or OTP not found'}, status=status.HTTP_200_OK)
 
-    voter_id=request.Get.get('voter_id')
-    otp=request.Get.get('otp')
+    voter_id=request.GET.get('voter_id')
+    otp=request.GET.get('otp')
     client_ip,is_routable=get_client_ip(request)
     booth = Booth.objects.filter(ip=client_ip)
     if not booth.exists():
@@ -425,7 +429,18 @@ def getBallot(request):
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not found or you are at the wrong booth'}, status=status.HTTP_200_OK)
     OTPobj = OTPobj.first()
-    if ((datetime.datetime.now()-OTPobj.validFrom).total_seconds()>=180):
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+        otpToken=OtpToToken.objects.filter(otp=OTPobj)
+        for otptok in otpToken:
+            token=otptok.token
+            voter=token.voter
+            voter.otpGenerated = False
+            voter.otpVerified = False
+            voter.save()
+            token.delete()
+        OTPobj.delete()
+        booth.status = 'Empty'
+        booth.save()
         return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_200_OK)
     otpTokens=OtpToToken.objects.filter(otp=OTPobj)
 
@@ -453,14 +468,17 @@ def getBallot(request):
     election=voter.election
     ballot = []
 
-    Lold=[obj.candidatename for obj in Candidate.objects.filter(election=election)]
+    Lold=[obj.entryNumber.name for obj in Candidate.objects.filter(election=election)]
     L=Lold.copy()
-    token=token.first()
+    print(len(Lold))
+    decimal.getcontext().prec = 1000
     for i in range(0,len(Lold)):
-        L[i]=Lold[(token.u+i)%len(Lold)]
-        ballot.append({'name':L[i],'j':(token.u+i)%len(Lold)})
+        u = token.u
+        print(u)
+        L[i]=Lold[(int)((u+i)%len(Lold))]
+        ballot.append({'name':L[i],'j':(u+i)%len(Lold)})
     
-    return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_u':str(token.C_u),'C_rid':str(token.C_rid),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
+    return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_uX':str(token.C_uX),'C_uY':str(token.C_uY) ,'C_ridX':str(token.C_ridX),'C_ridY':str(token.C_ridY),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
 
     
 
