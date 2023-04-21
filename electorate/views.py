@@ -263,19 +263,47 @@ def createVoters(request):
     
 @api_view(['GET'])
 def getElectionsForVoter(request):
-    if(request.user.is_authenticated and request.user.is_staff):
-        entryNumber = request.GET.get('entryNumber')
-        profile = Profile.objects.filter(entryNumber=entryNumber)
-        if profile.exists():
-            profile = profile.first()
-            voter = Voter.objects.filter(entryNumber=profile, election__electionDate__gte=datetime.datetime.now().date(), election__electionTimeStart__lte=datetime.datetime.now().time(), election__electionTimeEnd__gte=datetime.datetime.now().time(), voteCasted = False)
-            if voter.exists():
-                elections = voter.values('election__electionName')
-                return Response({'data': elections}, status=status.HTTP_200_OK)
-            else:
-                return Response({'data': 'No elections found'}, status=status.HTTP_200_OK)
-    else:
-        return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+    if(not(request.user.is_authenticated and request.user.is_staff)):
+        return Response({'error': 'Log in with Booth'}, status=status.HTTP_401_UNAUTHORIZED)
+    if('otp' not in request.GET):
+        return Response({'error': 'Please provide otp'}, status=status.HTTP_400_BAD_REQUEST)
+    otp = request.GET.get('otp')
+
+    client_ip,is_routable=get_client_ip(request)
+    booth = Booth.objects.filter(ip=client_ip)
+    if not booth.exists():
+        return Response({'error': 'Booth not found'}, status=status.HTTP_400_BAD_REQUEST)
+    booth = booth.first()
+
+    otpObject = OTP.objects.filter(otp=otp, booth=booth)
+    if not(otpObject.exists()):
+        return Response({'error': 'Invalid otp or booth'}, status=status.HTTP_400_BAD_REQUEST)
+    otpObject = otpObject.first() 
+
+    # check if otp has expired
+    if(datetime.datetime.now(pytz.timezone('Asia/Calcutta')) - otpObject.validFrom).total_seconds() > 180:
+        otpToken=OtpToToken.objects.filter(otp=otpObject)
+        for otptok in otpToken:
+            token=otptok.token
+            voter=token.voter
+            voter.otpGenerated = False
+            voter.otpVerified = False
+            voter.save()
+            token.delete()
+        otpObject.delete()
+        booth.status = 'Empty'
+        booth.save()
+        return Response({'error': 'Otp expired'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otpToToken = OtpToToken.objects.filter(otp=otpObject)
+    if not(otpToToken.exists()):
+        return Response({'error': 'Invalid otp'}, status=status.HTTP_400_BAD_REQUEST)
+    elections = []
+    for o in otpToToken:
+        elections.append({'election': o.token.voter.election.electionName, 'numVotes': o.token.voter.election.votesPerVoter, 'voterId': o.token.voter.id})
+    return Response({'data': elections}, status=status.HTTP_200_OK)
+    
+
     
 @api_view(['GET'])
 def getTokens(request):
@@ -505,19 +533,19 @@ def castVote(request):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
 
-    # if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
-    #     otpToken=OtpToToken.objects.filter(otp=OTPobj)
-    #     for otptok in otpToken:
-    #         token=otptok.token
-    #         voter=token.voter
-    #         voter.otpGenerated = False
-    #         voter.otpVerified = False
-    #         voter.save()
-    #         token.delete()
-    #     OTPobj.delete()
-    #     booth.status = 'Empty'
-    #     booth.save()
-    #     return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+        otpToken=OtpToToken.objects.filter(otp=OTPobj)
+        for otptok in otpToken:
+            token=otptok.token
+            voter=token.voter
+            voter.otpGenerated = False
+            voter.otpVerified = False
+            voter.save()
+            token.delete()
+        OTPobj.delete()
+        booth.status = 'Empty'
+        booth.save()
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     
     if ('vote_list' not in request.data or 'voter_id' not in request.data):
         return Response({'error': 'Incomplete Data'}, status=status.HTTP_400_BAD_REQUEST)
