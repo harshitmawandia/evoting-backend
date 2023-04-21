@@ -69,7 +69,7 @@ def getEmptyBooth():
 
 def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName):
     #EntryNumber = 2020CS10348 email = cs1200348@iitd.ac.in
-    email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:]+ '@iitd.ac.in'
+    email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:11]+ '@iitd.ac.in'
     subject = f'E-Voting Receipt for {electionName}'
     message = f'''
     Hello {voterName},<br><br>
@@ -86,7 +86,7 @@ def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionNam
     E-Voting Team,<br>
     CAIC, IIT Delhi'''
     try: #send mail with time limit of 2 seconds
-        send_mail(subject, message, 'no_reply_caic@iitd.ac.in', [email], fail_silently=False, html_message=message)
+        send_mail(subject, message, 'CAIC Elections <no_reply_caic@iitd.ac.in>', [email], fail_silently=False, html_message=message)
     except:
         print("Error sending email")
 
@@ -669,4 +669,3 @@ def checkReceipt(request):
 
 # @api_view(['POST'])
 # def castVote(request):
-    
