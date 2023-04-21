@@ -330,29 +330,31 @@ def getTokens(request):
                         voter.otpVerified = False
                         voter.save()                   
                     rid = randfield(CF)
-                    print(rid)
-                    print(type(rid))
+                    print('rid: ', rid)
                     r_rid = randfield(CF)
+                    print('r_rid: ', r_rid)
                     u = randfield(CF)
+                    # print(u)
                     r_u = randfield(CF)
+                    # print(r_u)
                     C_rid=(G**rid)*(H**r_rid)
+                    print('C_rid: ', C_rid)
+                    print('C_rid.x: ', C_rid.x)
+                    print('C_rid.y: ', C_rid.y)
                     C_u=(G**u)*(H**r_u)
                     rid = str(rid)
-                    rid = Decimal(rid)
+                    print('StringRid', rid)
                     r_rid = str(r_rid)
-                    r_rid = Decimal(r_rid)
+                    print('StringRrid', r_rid)
                     u = str(u)
-                    u = Decimal(u)
                     r_u = str(r_u)
-                    r_u = Decimal(r_u)
                     C_ridX = str(C_rid.x)
-                    C_ridX = Decimal(C_ridX)
+                    print('C_ridX', C_ridX)
                     C_ridY = str(C_rid.y)
-                    C_ridY = Decimal(C_ridY)
+                    print('C_ridY', C_ridY)
                     C_uX = str(C_u.x)
-                    C_uX = Decimal(C_uX)
                     C_uY = str(C_u.y)
-                    C_uY = Decimal(C_uY)
+
                     token = Token.objects.create(voter=voter, rid=rid, r_rid=r_rid, u=u, r_u=r_u, C_ridX=C_ridX, C_ridY=C_ridY, C_uX=C_uX, C_uY=C_uY)
                     token.save()
                     tokenObjects.append(token)
@@ -501,15 +503,16 @@ def getBallot(request):
     election=voter.election
     ballot = []
 
-    Lold=[obj.entryNumber.name for obj in Candidate.objects.filter(election=election)]
+    Lold=[obj for obj in Candidate.objects.filter(election=election)]
     L=Lold.copy()
     print(len(Lold))
-    decimal.getcontext().prec = 1000
+    # decimal.getcontext().prec = 1000
     for i in range(0,len(Lold)):
         u = token.u
         print(u)
-        L[i]=Lold[(int)((u+i)%len(Lold))]
-        ballot.append({'name':L[i],'j':(int)((u+i)%len(Lold))})
+        L[i]=Lold[(int)((int(u)+i)%len(Lold))]
+        j = (int)((int(u)+Lold[i].j)%len(Lold))
+        ballot.append({'name':Lold[i].entryNumber.name,'j':j})
     
     return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_uX':str(token.C_uX),'C_uY':str(token.C_uY) ,'C_ridX':str(token.C_ridX),'C_ridY':str(token.C_ridY),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
 
@@ -533,19 +536,19 @@ def castVote(request):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
 
-    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
-        otpToken=OtpToToken.objects.filter(otp=OTPobj)
-        for otptok in otpToken:
-            token=otptok.token
-            voter=token.voter
-            voter.otpGenerated = False
-            voter.otpVerified = False
-            voter.save()
-            token.delete()
-        OTPobj.delete()
-        booth.status = 'Empty'
-        booth.save()
-        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
+    # if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+    #     otpToken=OtpToToken.objects.filter(otp=OTPobj)
+    #     for otptok in otpToken:
+    #         token=otptok.token
+    #         voter=token.voter
+    #         voter.otpGenerated = False
+    #         voter.otpVerified = False
+    #         voter.save()
+    #         token.delete()
+    #     OTPobj.delete()
+    #     booth.status = 'Empty'
+    #     booth.save()
+    #     return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     
     if ('vote_list' not in request.data or 'voter_id' not in request.data):
         return Response({'error': 'Incomplete Data'}, status=status.HTTP_400_BAD_REQUEST)
@@ -575,29 +578,29 @@ def castVote(request):
     m=voter.election.numberOfCandidates
     if (len(w_vlist)!=voter.election.votesPerVoter):
         return Response({'error':'Incorrect number of votes'},status=status.HTTP_401_UNAUTHORIZED)
-    u=token.u
-    decimal.getcontext().prec = 1000
+    u=int(token.u)
+    # decimal.getcontext().prec = 1000
     for w_v in w_vlist:
-        v=((w_v-u)%m+m)%m
+        v=((w_v-u)%m+m)%m + 1
         r_v=randfield(CF)
-        r_v=Decimal(str(r_v))
         rid=(token.rid)
         r_rid=(token.r_rid)
-        w_vtilde=((token.r_u+v)%m)
-        r_w_v=(Decimal(str(r_v))+token.r_u)
+        w_vtilde=((int(token.r_u)+v)%m)
+        # r_w_v=(int(str(r_v))+int(token.r_u))
         C_ridX=(token.C_ridX)
         C_ridY=(token.C_ridY)
         C_rid = Curve(
                 (
-                    F(int((C_ridX))),
-                    F(int((C_ridY)))
+                    F(int(C_ridX)),
+                    F(int(C_ridY))
                 )
             )
-        C_v=(G**int(v))*(H**int(r_v))
+        C_v=(G**CF(v))*(H**r_v)
+        r_v=int(str(r_v))
         C_vX=(C_v.x)
-        C_vX=Decimal(str(C_vX))
+        C_vX=(str(C_vX))
         C_vY=(C_v.y)
-        C_vY=Decimal(str(C_vY))
+        C_vY=(str(C_vY))
         C_uX=(token.C_uX)
         C_uY=(token.C_uY)
         C_u = Curve(

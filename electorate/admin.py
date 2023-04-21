@@ -14,6 +14,8 @@ class CandidateAdmin(admin.ModelAdmin):
     search_fields = ['entryNumber__entryNumber', 'election__electionName', 'j']
 
 
+
+
 admin.site.register(Profile)
 admin.site.register(Election)
 admin.site.register(Booth)

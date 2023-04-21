@@ -57,14 +57,14 @@ class Booth(models.Model):
     status = models.CharField(max_length=15, choices=statusChoices, null=False, default='Empty')
 
 class Token(models.Model):
-    rid = models.DecimalField(max_digits=300, decimal_places=0)
-    C_ridX = models.DecimalField(max_digits=300, decimal_places=0)
-    C_ridY = models.DecimalField(max_digits=300, decimal_places=0)
-    r_rid = models.DecimalField(max_digits=300, decimal_places=0)
-    u = models.DecimalField(max_digits=300, decimal_places=0)
-    C_uX = models.DecimalField(max_digits=300, decimal_places=0)
-    C_uY = models.DecimalField(max_digits=300, decimal_places=0)
-    r_u = models.DecimalField(max_digits=300, decimal_places=0)
+    rid = models.CharField(max_length=300, null=False,default='')
+    C_ridX = models.CharField(max_length=300, null=False,default='')
+    C_ridY = models.CharField(max_length=300, null=False,default='')
+    r_rid = models.CharField(max_length=300, null=False,default='')
+    u = models.CharField(max_length=300, null=False,default='')
+    C_uX = models.CharField(max_length=300, null=False,default='')
+    C_uY = models.CharField(max_length=300, null=False,default='')
+    r_u = models.CharField(max_length=300, null=False,default='')
     voter = models.ForeignKey (Voter, on_delete=models.CASCADE, null=False)
 
 class OTP(models.Model):
@@ -77,13 +77,13 @@ class OtpToToken(models.Model):
     token = models.ForeignKey(Token, on_delete=models.CASCADE, null=False, unique=True, primary_key=True)
 
 class Vote(models.Model):
-    C_ridX = models.DecimalField(max_digits=300, decimal_places=0)
-    C_ridY = models.DecimalField(max_digits=300, decimal_places=0)
-    C_vX = models.DecimalField(max_digits=300, decimal_places=0)
-    C_vY = models.DecimalField(max_digits=300, decimal_places=0)
-    rid = models.DecimalField(max_digits=300, decimal_places=0)
+    C_ridX = models.CharField(max_length=300, null=False,default='')
+    C_ridY = models.CharField(max_length=300, null=False,default='')
+    C_vX = models.CharField(max_length=300, null=False,default='')
+    C_vY = models.CharField(max_length=300, null=False,default='')
+    rid = models.CharField(max_length=300, null=False,default='')
     v = models.IntegerField(null=False, default=-1)
-    r_rid = models.DecimalField(max_digits=300, decimal_places=0)
-    r_v = models.DecimalField(max_digits=300, decimal_places=0)
+    r_rid = models.CharField(max_length=300, null=False,default='')
+    r_v = models.CharField(max_length=300, null=False,default='')
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
 
