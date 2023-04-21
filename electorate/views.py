@@ -1,4 +1,4 @@
-import datetime
+import datetime 
 import random
 from django.shortcuts import render
 import pytz
@@ -19,9 +19,6 @@ from klefki.utils import to_sha256int
 import hashlib
 from django.conf import settings
 from django.core.mail import send_mail
-import os
-from decimal import Decimal
-import decimal
 
 
 G = Curve.G
@@ -55,7 +52,7 @@ def getEmptyBooth():
                 # if more than 180 seconds have passed since otp was generated
                 if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 180:
                     # delete otp and corresponding tokens
-                    Otptotoken = Otptotoken.objects.filter(otp=otpObject)
+                    Otptotoken = OtpToToken.objects.filter(otp=otpObject)
                     for o in Otptotoken:
                         if(o.token.voter.numVotesCasted == 0):
                             o.token.voter.otpGenerated = False
@@ -68,13 +65,7 @@ def getEmptyBooth():
                     b.save()
                     return b
         return None
-    
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com' #smtp
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.environ.get('smtp_user') # sender's email-id from Environment
-EMAIL_HOST_PASSWORD = os.environ.get('smtp_pass') # password of sender's email-id from Environment
+
 
 def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName):
     #EntryNumber = 2020CS10348 email = cs1200348@iitd.ac.in
@@ -94,7 +85,10 @@ def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionNam
     Regards,<br>
     E-Voting Team,<br>
     CAIC, IIT Delhi'''
-    send_mail(subject, message, EMAIL_HOST_USER, [email], fail_silently=True, html_message=message)
+    try: #send mail with time limit of 2 seconds
+        send_mail(subject, message, 'no_reply_caic@iitd.ac.in', [email], fail_silently=False, html_message=message)
+    except:
+        print("Error sending email")
 
 
 # Create your views here.
@@ -166,8 +160,11 @@ def createElection(request):
                 startTime = data['startTime']
                 endTime = data['endTime']
                 votes = 1
+                print(data)
                 if('votes' in data):
                     votes = data['votes']
+                    print(votes)
+                votes = int(votes)
                 election = Election.objects.create(electionName=election_name, electionDate=date, electionTimeStart=startTime, electionTimeEnd=endTime, votesPerVoter = votes)
                 election.save()
                 return Response({'data': 'Election created successfully'}, status=status.HTTP_200_OK)
@@ -330,28 +327,28 @@ def getTokens(request):
                         voter.otpVerified = False
                         voter.save()                   
                     rid = randfield(CF)
-                    print('rid: ', rid)
+                    # print('rid: ', rid)
                     r_rid = randfield(CF)
-                    print('r_rid: ', r_rid)
+                    # print('r_rid: ', r_rid)
                     u = randfield(CF)
                     # print(u)
                     r_u = randfield(CF)
                     # print(r_u)
                     C_rid=(G**rid)*(H**r_rid)
-                    print('C_rid: ', C_rid)
-                    print('C_rid.x: ', C_rid.x)
-                    print('C_rid.y: ', C_rid.y)
+                    # print('C_rid: ', C_rid)
+                    # print('C_rid.x: ', C_rid.x)
+                    # print('C_rid.y: ', C_rid.y)
                     C_u=(G**u)*(H**r_u)
                     rid = str(rid)
-                    print('StringRid', rid)
+                    # print('StringRid', rid)
                     r_rid = str(r_rid)
-                    print('StringRrid', r_rid)
+                    # print('StringRrid', r_rid)
                     u = str(u)
                     r_u = str(r_u)
                     C_ridX = str(C_rid.x)
-                    print('C_ridX', C_ridX)
+                    # print('C_ridX', C_ridX)
                     C_ridY = str(C_rid.y)
-                    print('C_ridY', C_ridY)
+                    # print('C_ridY', C_ridY)
                     C_uX = str(C_u.x)
                     C_uY = str(C_u.y)
 
@@ -511,7 +508,7 @@ def getBallot(request):
         u = token.u
         print(u)
         L[i]=Lold[(int)((int(u)+i)%len(Lold))]
-        j = (int)((int(u)+Lold[i].j)%len(Lold))
+        j = (int)((int(u)+Lold[i].j-1)%len(Lold))
         ballot.append({'name':Lold[i].entryNumber.name,'j':j})
     
     return Response({'data': 'Token verified','ballotlist':ballot,'u':str(token.u),'C_uX':str(token.C_uX),'C_uY':str(token.C_uY) ,'C_ridX':str(token.C_ridX),'C_ridY':str(token.C_ridY),'electionName':election.electionName, 'numVotes':election.votesPerVoter}, status=status.HTTP_200_OK)
@@ -536,19 +533,19 @@ def castVote(request):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
 
-    # if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
-    #     otpToken=OtpToToken.objects.filter(otp=OTPobj)
-    #     for otptok in otpToken:
-    #         token=otptok.token
-    #         voter=token.voter
-    #         voter.otpGenerated = False
-    #         voter.otpVerified = False
-    #         voter.save()
-    #         token.delete()
-    #     OTPobj.delete()
-    #     booth.status = 'Empty'
-    #     booth.save()
-    #     return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+        otpToken=OtpToToken.objects.filter(otp=OTPobj)
+        for otptok in otpToken:
+            token=otptok.token
+            voter=token.voter
+            voter.otpGenerated = False
+            voter.otpVerified = False
+            voter.save()
+            token.delete()
+        OTPobj.delete()
+        booth.status = 'Empty'
+        booth.save()
+        return Response({'error': 'Token expired,please talk to the polling officer'}, status=status.HTTP_400_BAD_REQUEST)
     
     if ('vote_list' not in request.data or 'voter_id' not in request.data):
         return Response({'error': 'Incomplete Data'}, status=status.HTTP_400_BAD_REQUEST)
@@ -586,7 +583,7 @@ def castVote(request):
         rid=(token.rid)
         r_rid=(token.r_rid)
         w_vtilde=((int(token.r_u)+v)%m)
-        # r_w_v=(int(str(r_v))+int(token.r_u))
+        r_w_v=(int(str(r_v))+int(token.r_u))
         C_ridX=(token.C_ridX)
         C_ridY=(token.C_ridY)
         C_rid = Curve(
@@ -609,14 +606,12 @@ def castVote(request):
                     F(int((C_uY)))
                 )
             )
-        # entrynohash=hashlib.sha256(str(voter.entryNumber.entryNumber).encode('utf-8')).hexdigest()
-        # receipt=Receipt.create(C_rid=C_rid,C_v=C_v,C_u=C_u,w_v=w_v,w_vtilde=w_vtilde,r_w_v=r_w_v)
-        # receipt.save()
+        w_v_final = u + v
         vote=Vote.objects.create(C_ridX=C_ridX,C_ridY=C_ridY,C_vX=C_vX,C_vY=C_vY,rid=rid,v=v,r_rid=r_rid,r_v=r_v, election=voter.election)
         vote.save()
         voter.numVotesCasted+=1
-        voter.save()
-        # sendReceipt(C_rid,C_u,C_v,w_v,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name)
+        voter.save() 
+        sendReceipt((C_ridX,C_ridY),(C_uX,C_uY),(C_vX,C_vY),w_v_final,w_vtilde,r_w_v,voter.entryNumber.entryNumber,voter.election,voter.entryNumber.name)
         #send email
     token.delete()
     otpToken=OtpToToken.objects.filter(otp=OTPobj)
@@ -636,7 +631,7 @@ def getResults(request):
         return Response({'error':'No election name'},status=status.HTTP_400_BAD_REQUEST)
     election=Election.objects.filter(electionName=request.GET['electionName'])
     if (not(election.exists())):
-        return Response({'error':'No election with this name'},status=status.HTTP_200_OK)
+        return Response({'error':'No election with this name'},status=status.HTTP_400_BAD_REQUEST)
     election=election.first()
     candidates=Candidate.objects.filter(election=election)
     votes=Vote.objects.filter(election=election)
@@ -660,16 +655,16 @@ def checkReceipt(request):
         return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
     election=Election.objects.filter(electionName=request.GET['electionName'])
     if (not(election.exists())):
-        return Response({'error':'No election with this name'},status=status.HTTP_200_OK)
+        return Response({'error':'No election with this name'},status=status.HTTP_400_BAD_REQUEST)
     election=election.first()
     C_rid=request.GET['C_rid']
     vote=Vote.objects.filter(C_rid=C_rid,election=election)
     if (not(vote.exists())):
-        return Response({'error':'No vote with this C_rid'},status=status.HTTP_200_OK)
+        return Response({'error':'No vote with this C_rid'},status=status.HTTP_400_BAD_REQUEST)
     vote=vote.first()
     v=vote.v
 
-    return Response({'vote':Candidate.objects.filter(election=election)[v]},status=status.HTTP_200_OK)
+    return Response({'vote':Candidate.objects.get(election=election,j=v).entryNumber.name},status=status.HTTP_200_OK)
 
 
 # @api_view(['POST'])
