@@ -38,19 +38,19 @@ def generateOtp():
     # return as hex string
     return hex(otp)[2:].zfill(4)
 
-def getEmptyBooth():
-    booth = Booth.objects.filter(status='Empty')
+def getEmptyBooth(user):
+    booth = Booth.objects.filter(status='Empty',user=user)
     if booth.exists():
         # return a random booth
         return booth[random.randint(0, len(booth)-1)]
     else:
-        booth = Booth.objects.all()
+        booth = Booth.objects.filter(user=user)
         for b in booth:
             otpObject = OTP.objects.filter(booth=b)
             if otpObject.exists():
                 otpObject = otpObject.first()
-                # if more than 180 seconds have passed since otp was generated
-                if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 180:
+                # if more than 300 seconds have passed since otp was generated
+                if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 300:
                     # delete otp and corresponding tokens
                     Otptotoken = OtpToToken.objects.filter(otp=otpObject)
                     for o in Otptotoken:
@@ -86,9 +86,11 @@ def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionNam
     E-Voting Team,<br>
     CAIC, IIT Delhi'''
     try: #send mail with time limit of 2 seconds
-        send_mail(subject, message, 'CAIC Elections <no_reply_caic@iitd.ac.in>', [email], fail_silently=False, html_message=message)
-    except:
+        print(email)
+        send_mail(subject, message, 'CAIC Elections <no_reply_caic@iitd.ac.in>', [email], fail_silently=True, html_message=message)
+    except Exception as e:
         print("Error sending email")
+        print(e)
 
 
 # Create your views here.
@@ -278,7 +280,7 @@ def getElectionsForVoter(request):
     otpObject = otpObject.first() 
 
     # check if otp has expired
-    if(datetime.datetime.now(pytz.timezone('Asia/Calcutta')) - otpObject.validFrom).total_seconds() > 180:
+    if(datetime.datetime.now(pytz.timezone('Asia/Calcutta')) - otpObject.validFrom).total_seconds() > 300:
         otpToken=OtpToToken.objects.filter(otp=otpObject)
         for otptok in otpToken:
             token=otptok.token
@@ -359,7 +361,7 @@ def getTokens(request):
                     voter.save()
 
                 otp = generateOtp()
-                booth = getEmptyBooth()
+                booth = getEmptyBooth(request.user)
                 if booth is None:
                     for token in tokenObjects:
                         token.delete()
@@ -404,7 +406,7 @@ def verifyOTP(request):
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
-    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=300):
         otpToken=OtpToToken.objects.filter(otp=OTPobj)
         for otptok in otpToken:
             token=otptok.token
@@ -458,7 +460,7 @@ def getBallot(request):
     if (not(OTPobj.exists())):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
-    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=300):
         otpToken=OtpToToken.objects.filter(otp=OTPobj)
         for otptok in otpToken:
             token=otptok.token
@@ -479,6 +481,12 @@ def getBallot(request):
     voter=Voter.objects.filter(id=voter_id)
     if (not(voter.exists())):
         return Response({'error': 'No voter with this id'}, status=status.HTTP_400_BAD_REQUEST)
+    voter=voter.filter(otpGenerated=True)
+    if (not(voter.exists())):
+        return Response({'error': 'OTP not generated for this voter'}, status=status.HTTP_400_BAD_REQUEST)
+    voter=voter.filter(otpVerified=True)
+    if (not(voter.exists())):
+        return Response({'error': 'OTP not verified for this voter'}, status=status.HTTP_400_BAD_REQUEST)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):
@@ -533,7 +541,7 @@ def castVote(request):
         return Response({'error': 'OTP not correct or you are at the wrong booth'}, status=status.HTTP_401_UNAUTHORIZED)
     OTPobj = OTPobj.first()
 
-    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=180):
+    if ((datetime.datetime.now(pytz.timezone('Asia/Calcutta'))-OTPobj.validFrom).total_seconds()>=300):
         otpToken=OtpToToken.objects.filter(otp=OTPobj)
         for otptok in otpToken:
             token=otptok.token
@@ -554,6 +562,12 @@ def castVote(request):
     voter=Voter.objects.filter(id=vote_id)
     if (not(voter.exists())):
         return Response({'error': 'No voter with this id'}, status=status.HTTP_401_UNAUTHORIZED)
+    voter=voter.filter(otpGenerated=True)
+    if (not(voter.exists())):
+        return Response({'error': 'OTP not generated for this voter'}, status=status.HTTP_400_BAD_REQUEST)
+    voter=voter.filter(otpVerified=True)
+    if (not(voter.exists())):
+        return Response({'error': 'OTP not verified for this voter'}, status=status.HTTP_400_BAD_REQUEST)
     voter=voter.first()
     token=Token.objects.filter(voter=voter)
     if (not(token.exists())):

@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Create your models here.
 class Profile(models.Model):
@@ -55,6 +56,7 @@ class Booth(models.Model):
     verified = models.BooleanField(default=False, null=False)
     statusChoices = [('Empty', 'Empty'), ('Token Generated', 'Token Generated'), ('Token Verified', 'Token Verified')]
     status = models.CharField(max_length=15, choices=statusChoices, null=False, default='Empty')
+    user = models.ForeignKey(User, on_delete=models.CASCADE,null=False,default=1)
 
 class Token(models.Model):
     rid = models.CharField(max_length=300, null=False,default='')
