@@ -130,13 +130,16 @@ def registerBooth(request):
                 tokens = get_tokens_for_user(user)
                 client_ip, is_routable = get_client_ip(request)
                 booth = Booth.objects.filter(ip=client_ip)
+                print(user)
                 if booth.exists():
                     booth = booth.first()
                     booth.verified = True
+                    print(booth.user.username)
+                    booth.user = user
                     booth.save()
                     return Response({'data': 'Booth already registered', 'token': tokens}, status=status.HTTP_200_OK)
                 else:
-                    booth = Booth.objects.create(ip=client_ip, verified=True)
+                    booth = Booth.objects.create(ip=client_ip, verified=True, user=user)
                     booth.save()
                     return Response({'data': 'Booth registered successfully', 'token': tokens}, status=status.HTTP_200_OK)
             else:
