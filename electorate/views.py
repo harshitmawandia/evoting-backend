@@ -132,6 +132,7 @@ def registerBooth(request):
                 tokens = get_tokens_for_user(user)
                 client_ip, is_routable = get_client_ip(request)
                 booth = Booth.objects.filter(ip=client_ip)
+                print(user)
                 if booth.exists():
                     booth = booth.first()
                     booth.verified = True
