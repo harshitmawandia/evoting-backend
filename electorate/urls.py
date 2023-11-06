@@ -13,6 +13,7 @@ urlpatterns = [
     path('admin/voter/otp', views.verifyOTP, name='verifyOTP'),
     path('admin/voter/ballot', views.getBallot, name='getBallot'),
     path('admin/voter/vote', views.castVote, name='castVote'),
-    path('admin/results', views.getResults, name='getResults'),
+    path('admin/results/election', views.getElectionResult, name='getResults'),
+    path('admin/results', views.getAllElectionResults, name='getAllResults'),
     path('admin/voter/checkReceipt', views.checkReceipt, name='checkReceipt'),
 ]

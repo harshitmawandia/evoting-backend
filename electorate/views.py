@@ -1,4 +1,6 @@
-import datetime 
+import datetime
+import os
+from django.http import HttpResponse
 import random
 from django.shortcuts import render
 import pytz
@@ -133,10 +135,11 @@ def registerBooth(request):
                 if booth.exists():
                     booth = booth.first()
                     booth.verified = True
+                    booth.user = user
                     booth.save()
                     return Response({'data': 'Booth already registered', 'token': tokens}, status=status.HTTP_200_OK)
                 else:
-                    booth = Booth.objects.create(ip=client_ip, verified=True)
+                    booth = Booth.objects.create(ip=client_ip, verified=True, user=user)
                     booth.save()
                     return Response({'data': 'Booth registered successfully', 'token': tokens}, status=status.HTTP_200_OK)
             else:
@@ -184,7 +187,7 @@ def getElections(request):
             print(elections)
             return Response({'data': elections}, status=status.HTTP_200_OK)
         else:
-            return Response({'data': 'No elections found'}, status=status.HTTP_200_OK)
+            return Response({'error': 'No elections found'}, status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response({'error': 'You are not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
     
@@ -368,7 +371,7 @@ def getTokens(request):
                     for voter in voters:
                         voter.otpGenerated = False
                         voter.save()
-                    return Response({'error': 'No booths available'}, status=status.HTTP_200_OK)
+                    return Response({'error': 'No booths available'}, status=status.HTTP_400_BAD_REQUEST)
                 booth.status = 'Token Generated'
                 booth.save()
 
@@ -621,7 +624,7 @@ def castVote(request):
                 )
             )
         w_v_final = u + v
-        vote=Vote.objects.create(C_ridX=C_ridX,C_ridY=C_ridY,C_vX=C_vX,C_vY=C_vY,rid=rid,v=v,r_rid=r_rid,r_v=r_v, election=voter.election)
+        vote=Vote.objects.create(C_ridX=C_ridX,C_ridY=C_ridY,C_vX=C_vX,C_vY=C_vY,rid=rid,v=v,r_rid=r_rid,r_v=r_v, election=voter.election, by=voter)
         vote.save()
         voter.numVotesCasted+=1
         voter.save() 
@@ -638,12 +641,14 @@ def castVote(request):
 
 
 @api_view(['GET'])
-def getResults(request):
+def getElectionResult(request):
     if not(request.user.is_authenticated and request.user.is_staff):
         return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
     if(not 'electionName' in request.GET):
         return Response({'error':'No election name'},status=status.HTTP_400_BAD_REQUEST)
-    election=Election.objects.filter(electionName=request.GET['electionName'])
+    name = request.GET['electionName']
+    print(name)
+    election=Election.objects.all().filter(electionName=name)
     if (not(election.exists())):
         return Response({'error':'No election with this name'},status=status.HTTP_400_BAD_REQUEST)
     election=election.first()
@@ -651,22 +656,102 @@ def getResults(request):
     votes=Vote.objects.filter(election=election)
     results={}
     for candidate in candidates:
-        results[candidate.entryNumber.name]=0
+        results[candidate.entryNumber.entryNumber]={
+            'name':candidate.entryNumber.name,
+            'votes':0
+        }
     for vote in votes:
         v = vote.v
         for candidate in candidates:
             if (candidate.j==v):
-                results[candidate.entryNumber.name]+=1
+                results[candidate.entryNumber.entryNumber]['votes']+=1
 
     #sort results
-    results = sorted(results.items(), key=lambda x: x[1],reverse=True)
-    return Response({'results':results},status=status.HTTP_200_OK)
+    results=sorted(results.items(), key=lambda x: x[1]['votes'],reverse=True)
+
+    #create csv file with ElectionName.csv
+    # clear the file if it exists
+    open(election.electionName+'.csv', 'w').close()
+    with open(election.electionName+'.csv', 'a+') as f1:
+        # create columns name, entryNumber, votes
+        f1.write('name,entryNumber,votes\n')
+        for result in results:
+            f1.write(result[1]['name']+','+str(result[0])+','+str(result[1]['votes'])+'\n')
+        
+        #send csv file in response
+        f1.seek(0)
+        print(f1)
+        response = HttpResponse(f1, content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename='+election.electionName+'.csv'
+        # delete the file
+        os.remove(election.electionName+'.csv')
+        return response
+    
+@api_view(['GET'])
+def getAllElectionResults(request):
+    if not(request.user.is_authenticated and request.user.is_staff):
+        return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
+    elections=Election.objects.all()
+    results = {}
+    for election in elections:
+        candidates=Candidate.objects.filter(election=election)
+        votes=Vote.objects.filter(election=election)
+        electionResult = {}
+        for candidate in candidates:
+            electionResult[candidate.entryNumber.entryNumber]={
+                'name':candidate.entryNumber.name,
+                'votes':0
+            }
+        for vote in votes:
+            v = vote.v
+            for candidate in candidates:
+                if (candidate.j==v):
+                    electionResult[candidate.entryNumber.entryNumber]['votes']+=1
+        
+        # get the winner
+        electionResult=sorted(electionResult.items(), key=lambda x: x[1]['votes'],reverse=True)
+        # what if there is a tie between n candidates
+        # for now we will just take the first n candidates with the highest votes
+        finalResult = []
+        for i in range(len(electionResult)):
+            if (i==0):
+                finalResult.append(electionResult[i])
+            else:
+                if (electionResult[i][1]['votes']==electionResult[i-1][1]['votes']):
+                    finalResult.append(electionResult[i])
+                else:
+                    break
+        
+        results[election.electionName] = finalResult
+
+    # create csv file with ElectionName.csv
+    with open('Results.csv', 'a+') as f1:
+        # create columns name, entryNumber, votes
+        f1.write('electionName,name,entryNumber,votes\n')
+        for electionName in results:
+            # first row is the election name, name of the winner, entryNumber of the winner and the number of votes
+            f1.write(electionName+','+results[electionName][0][1]['name']+','+str(results[electionName][0][0])+','+str(results[electionName][0][1]['votes'])+'\n')
+            # the rest of the rows are "", the name, entryNumber and number of votes of the other candidates
+            for i in range(1,len(results[electionName])):
+                f1.write(','+results[electionName][i][1]['name']+','+str(results[electionName][i][0])+','+str(results[electionName][i][1]['votes'])+'\n')
+
+        # send csv file in response
+        f1.seek(0)
+        response = HttpResponse(f1, content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename=Results.csv'
+        # delete the file
+        os.remove('Results.csv')
+        return response
 
 
 @api_view(['GET'])
 def checkReceipt(request):
     if not(request.user.is_authenticated and request.user.is_staff):
         return Response({'error':'Not authenticated'},status=status.HTTP_401_UNAUTHORIZED)
+    if(not 'electionName' in request.GET):
+        return Response({'error':'No election name'},status=status.HTTP_400_BAD_REQUEST)
+    if(not 'C_rid' in request.GET):
+        return Response({'error':'No C_rid'},status=status.HTTP_400_BAD_REQUEST)
     election=Election.objects.filter(electionName=request.GET['electionName'])
     if (not(election.exists())):
         return Response({'error':'No election with this name'},status=status.HTTP_400_BAD_REQUEST)
@@ -679,7 +764,3 @@ def checkReceipt(request):
     v=vote.v
 
     return Response({'vote':Candidate.objects.get(election=election,j=v).entryNumber.name},status=status.HTTP_200_OK)
-
-
-# @api_view(['POST'])
-# def castVote(request):

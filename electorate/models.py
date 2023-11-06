@@ -88,4 +88,5 @@ class Vote(models.Model):
     r_rid = models.CharField(max_length=300, null=False,default='')
     r_v = models.CharField(max_length=300, null=False,default='')
     election = models.ForeignKey(Election, on_delete=models.CASCADE, null=False)
+    by = models.ForeignKey(Voter, on_delete=models.CASCADE, null=True)
 
