@@ -66,6 +66,11 @@ def getEmptyBooth(user):
                     b.status = 'Empty'
                     b.save()
                     return b
+            else:
+                b.status = 'Empty'
+                b.save()
+                return b
+                    
         return None
 
 
