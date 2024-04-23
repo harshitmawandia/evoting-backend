@@ -713,20 +713,14 @@ def getAllElectionResults(request):
             for candidate in candidates:
                 if (candidate.j==v):
                     electionResult[candidate.entryNumber.entryNumber]['votes']+=1
-        
-        # get the winner
+
+        #sort results
         electionResult=sorted(electionResult.items(), key=lambda x: x[1]['votes'],reverse=True)
-        # what if there is a tie between n candidates
-        # for now we will just take the first n candidates with the highest votes
+
+        # print(electionResult)
         finalResult = []
-        for i in range(len(electionResult)):
-            if (i==0):
-                finalResult.append(electionResult[i])
-            else:
-                if (electionResult[i][1]['votes']==electionResult[i-1][1]['votes']):
-                    finalResult.append(electionResult[i])
-                else:
-                    break
+        for result in electionResult:
+            finalResult.append((result[0],result[1]))
         
         results[election.electionName] = finalResult
 
