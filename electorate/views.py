@@ -20,7 +20,8 @@ from klefki.algebra.utils import randfield
 from klefki.utils import to_sha256int
 import hashlib
 from django.conf import settings
-from django.core.mail import send_mail
+import smtplib
+from email.mime.text import MIMEText
 
 
 G = Curve.G
@@ -52,7 +53,7 @@ def getEmptyBooth(user):
             if otpObject.exists():
                 otpObject = otpObject.first()
                 # if more than 300 seconds have passed since otp was generated
-                if (datetime.datetime.now() - otpObject.validFrom).total_seconds() > 300:
+                if (datetime.datetime.now(datetime.timezone.utc) - otpObject.validFrom).total_seconds() > 300:
                     # delete otp and corresponding tokens
                     Otptotoken = OtpToToken.objects.filter(otp=otpObject)
                     for o in Otptotoken:
@@ -76,7 +77,8 @@ def getEmptyBooth(user):
 
 def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionName, voterName):
     #EntryNumber = 2020CS10348 email = cs1200348@iitd.ac.in
-    email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:11]+ '@iitd.ac.in'
+    # email = entryNumber[4:7]+entryNumber[2:4]+entryNumber[7:11]+ '@iitd.ac.in'
+    email = 'cs1200348@iitd.ac.in'
     subject = f'E-Voting Receipt for {electionName}'
     message = f'''
     Hello {voterName},<br><br>
@@ -94,7 +96,22 @@ def sendReceipt(C_rid, C_u, C_v, w_v, w_v_tilda, r_w_v, entryNumber, electionNam
     CAIC, IIT Delhi'''
     try: #send mail with time limit of 2 seconds
         print(email)
-        send_mail(subject, message, 'CAIC Elections <no_reply_caic@iitd.ac.in>', [email], fail_silently=True, html_message=message)
+        # send_mail(subject, message, 'acadoutreach@admin.iitd.ac.in', [email], fail_silently=True, html_message=message, auth_user='acadoutreach', 
+        # smtplib.SMTP('smtp.iitd.ac.in', 465)
+
+        msg = MIMEText(message)
+        msg['Subject'] = subject
+        msg['From'] = 'acadoutreach@admin.iitd.ac.in'
+        msg['To'] = email
+
+        server = smtplib.SMTP('smtp.iitd.ac.in', 465)
+        reply = server.login('acadoutreach', 'outreach_2021')
+        print(reply)
+        response = server.sendmail('acadoutreach@admin.iitd.ac.in', email, msg.as_string())
+        print(response)
+        server.quit()
+
+
     except Exception as e:
         print("Error sending email")
         print(e)
@@ -327,7 +344,7 @@ def getTokens(request):
                     if voter.otpVerified or voter.otpGenerated:
                         token = Token.objects.filter(voter=voter)
                         if token.exists():
-                            otp = OtpToToken.objects.get(token=token.first()).otp
+                            otp = OtpToToken.objects.filter(token=token.first()).otp
                             token.first().delete()
                             if(not OtpToToken.objects.filter(otp=otp).exists()):
                                 booth = otp.booth
