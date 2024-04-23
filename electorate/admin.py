@@ -27,6 +27,14 @@ class VotesAdmin(admin.ModelAdmin):
     list_display = ['id', 'election', 'v']
     list_filter = ['election__electionName']
 
+class OTPAdmin(admin.ModelAdmin):
+    list_display = ['id', 'otp', 'booth']
+    search_fields = ['otp', 'booth__id']
+
+class TokenAdmin(admin.ModelAdmin):
+    list_display = ['id', 'voter'] 
+    search_fields = ['voter__entryNumber__entryNumber', 'voter__entryNumber__name']
+    list_filter = ['voter__election__electionName']
 
 
 
@@ -35,7 +43,7 @@ admin.site.register(Election)
 admin.site.register(Booth, BoothAdmin)
 admin.site.register(Candidate, CandidateAdmin)
 admin.site.register(Voter, VoterAdmin)
-admin.site.register(Token)
+admin.site.register(Token, TokenAdmin)
 admin.site.register(Vote, VotesAdmin)
-admin.site.register(OTP)
+admin.site.register(OTP, OTPAdmin)
 admin.site.register(OtpToToken)
